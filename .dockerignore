@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Data
+source_text/
+*.json
+!data/unsealed.db
+
+# Git
+.git/
+.gitignore
+
+# Docs
+docs/
+
+# IDE
+.vscode/
+.idea/
+
+# Temp files
+*.log
+.DS_Store
