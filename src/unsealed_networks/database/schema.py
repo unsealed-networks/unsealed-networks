@@ -70,6 +70,7 @@ def init_database(db_path: Path) -> sqlite3.Connection:
     # Create document_entities junction table with rich metadata
     conn.execute("""
         CREATE TABLE IF NOT EXISTS document_entities (
+            mention_id INTEGER PRIMARY KEY AUTOINCREMENT,
             doc_id TEXT NOT NULL,
             entity_id INTEGER NOT NULL,
             context TEXT,
@@ -77,7 +78,6 @@ def init_database(db_path: Path) -> sqlite3.Connection:
             method TEXT NOT NULL CHECK(method IN ('regex', 'llm')),
             position_start INTEGER,
             position_end INTEGER,
-            PRIMARY KEY (doc_id, entity_id),
             FOREIGN KEY (doc_id) REFERENCES documents(doc_id),
             FOREIGN KEY (entity_id) REFERENCES entities(entity_id)
         )

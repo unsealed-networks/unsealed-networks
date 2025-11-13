@@ -393,7 +393,13 @@ Respond with JSON:
         response.raise_for_status()
 
         result = response.json()
-        validated = json.loads(result["response"])
+
+        try:
+            validated = json.loads(result["response"])
+        except json.JSONDecodeError as e:
+            print(f"LLM returned invalid JSON: {result['response'][:200]}... Error: {e}")
+            validated = {}
+
         return validated
 
     def _apply_llm_validation(

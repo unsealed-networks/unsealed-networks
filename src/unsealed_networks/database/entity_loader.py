@@ -81,9 +81,13 @@ def extract_and_store_entities(
         }
         entities_by_type = {type_mapping.get(k, k): v for k, v in entities_by_type.items()}
 
-        # Parse email metadata if it looks like an email
+        # Parse email metadata if document is classified as email
         email_metadata = None
-        if "from:" in text.lower()[:500]:  # Quick heuristic
+        doc_type = conn.execute(
+            "SELECT doc_type FROM documents WHERE doc_id = ?", (doc_id,)
+        ).fetchone()
+
+        if doc_type and doc_type[0] == "email":
             try:
                 parser = EmailParser()
                 email_metadata = parser.parse(filepath)
@@ -136,9 +140,10 @@ def extract_and_store_entities(
                 stats["entities_found"] += 1
 
                 # Link entity to document with metadata
+                # Note: No PRIMARY KEY on (doc_id, entity_id) to allow multiple mentions
                 conn.execute(
                     """
-                    INSERT OR IGNORE INTO document_entities
+                    INSERT INTO document_entities
                     (doc_id, entity_id, context, confidence, method)
                     VALUES (?, ?, ?, ?, ?)
                     """,
