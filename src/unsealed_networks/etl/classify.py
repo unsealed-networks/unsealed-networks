@@ -2,6 +2,7 @@
 
 import json
 import logging
+from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -247,8 +248,6 @@ def classify_documents(
     logger.info(f"Saved {len(results)} classification results to {output_path}")
 
     # Log statistics
-    from collections import Counter
-
     type_counts = Counter(r.document_type for r in results)
     method_counts = Counter(r.method for r in results)
 

@@ -217,7 +217,7 @@ def download_data(
         """Download file with progress bar."""
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
-        response = requests.get(url, stream=True, timeout=30)
+        response = requests.get(url, stream=True, timeout=120)
         response.raise_for_status()
 
         total_size = int(response.headers.get("content-length", 0))

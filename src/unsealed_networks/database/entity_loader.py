@@ -41,6 +41,7 @@ def extract_and_store_entities(
     conn: sqlite3.Connection,
     doc_id: str,
     filepath: Path,
+    doc_type: str,
     enable_llm: bool = False,
 ) -> dict:
     """Extract entities from a document and store in database.
@@ -49,6 +50,7 @@ def extract_and_store_entities(
         conn: Database connection
         doc_id: Document ID
         filepath: Path to document file
+        doc_type: Document type (email, letter, etc.) from classification
         enable_llm: Whether to use LLM validation (slower but more accurate)
 
     Returns:
@@ -83,11 +85,7 @@ def extract_and_store_entities(
 
         # Parse email metadata if document is classified as email
         email_metadata = None
-        doc_type = conn.execute(
-            "SELECT doc_type FROM documents WHERE doc_id = ?", (doc_id,)
-        ).fetchone()
-
-        if doc_type and doc_type[0] == "email":
+        if doc_type == "email":
             try:
                 parser = EmailParser()
                 email_metadata = parser.parse(filepath)
@@ -228,13 +226,13 @@ def batch_extract_entities(
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
 
-    # Get documents to process
+    # Get documents to process (including doc_type to avoid N+1 queries)
     if doc_ids:
         placeholders = ",".join("?" * len(doc_ids))
-        query = f"SELECT doc_id, filepath FROM documents WHERE doc_id IN ({placeholders})"
+        query = f"SELECT doc_id, filepath, doc_type FROM documents WHERE doc_id IN ({placeholders})"
         docs = conn.execute(query, doc_ids).fetchall()
     else:
-        docs = conn.execute("SELECT doc_id, filepath FROM documents").fetchall()
+        docs = conn.execute("SELECT doc_id, filepath, doc_type FROM documents").fetchall()
 
     console.print(f"[bold]Extracting entities from {len(docs)} documents...[/bold]")
     if enable_llm:
@@ -254,7 +252,7 @@ def batch_extract_entities(
     for doc in track(docs, description="Extracting entities"):
         try:
             doc_stats = extract_and_store_entities(
-                conn, doc["doc_id"], Path(doc["filepath"]), enable_llm
+                conn, doc["doc_id"], Path(doc["filepath"]), doc["doc_type"], enable_llm
             )
 
             overall_stats["processed"] += 1

@@ -493,7 +493,7 @@
   - [ ] Add contact relationship edges to graph
 - [ ] Integrate 50th Birthday Book (2003)
   - [ ] Download birthday book from DocumentCloud
-    - URL: https://www.documentcloud.org/documents/26086390-jeffey-epstein-50th-birthday-book/
+    - URL: https://www.documentcloud.org/documents/26086390-jeffrey-epstein-50th-birthday-book/
     - 238 pages of messages, drawings, and photos
   - [ ] Parse JSON with messages, drawings, photos
   - [ ] Extract sender names and relationship context

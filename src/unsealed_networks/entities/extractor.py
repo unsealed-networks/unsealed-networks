@@ -1,6 +1,7 @@
 """Hybrid entity extraction using regex + LLM validation."""
 
 import json
+import logging
 import re
 from dataclasses import dataclass
 from typing import Any
@@ -8,6 +9,8 @@ from typing import Any
 import requests
 
 from ..config import DEFAULT_OLLAMA_CONFIG, OllamaConfig
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -353,7 +356,7 @@ class HybridEntityExtractor:
 
         except Exception as e:
             # If LLM fails, return original regex results
-            print(f"LLM validation failed: {e}")
+            logger.warning(f"LLM validation failed: {e}")
 
         return entities
 
@@ -399,7 +402,7 @@ Respond with JSON:
         try:
             validated = json.loads(result["response"])
         except json.JSONDecodeError as e:
-            print(f"LLM returned invalid JSON: {result['response'][:200]}... Error: {e}")
+            logger.warning(f"LLM returned invalid JSON: {result['response'][:200]}... Error: {e}")
             validated = {}
 
         return validated
