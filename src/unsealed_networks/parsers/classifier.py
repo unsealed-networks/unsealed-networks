@@ -17,6 +17,10 @@ class DocumentType:
 class DocumentClassifier:
     """Classify documents into types for appropriate parsing."""
 
+    # Configuration constants - extracted for maintainability
+    MAX_READ_SIZE = 51200  # Read first 50KB for classification (avoids loading huge files)
+    CLASSIFICATION_HEADER_SIZE = 2000  # Use first 2000 chars for pattern matching
+
     # Email detection patterns
     EMAIL_HEADER_PATTERN = re.compile(
         r"From:\s+.+\nTo:\s+.+\nSubject:\s+.+\nSent:\s+\d+/\d+/\d+",
@@ -51,10 +55,10 @@ class DocumentClassifier:
             DocumentType with classification and confidence
         """
         with open(filepath, encoding="utf-8-sig", errors="replace") as f:
-            content = f.read()
+            content = f.read(self.MAX_READ_SIZE)
 
-        # Get first 2000 characters for fast classification
-        header = content[:2000]
+        # Get first characters for fast classification
+        header = content[: self.CLASSIFICATION_HEADER_SIZE]
 
         # Check for email (highest priority - clearest markers)
         if self._is_email(header):

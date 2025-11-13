@@ -34,7 +34,10 @@ class NewsArticleParser:
 
     # Configuration constants - extracted from magic numbers for maintainability
     MAX_HEADER_LINES = 50  # Maximum lines to search for article header
+    MAX_HEADER_CHARS = 1000  # Maximum characters to extract for header analysis
     MAX_BODY_LINES = 1000  # Maximum body lines to extract
+    MIN_BODY_START_LINE_LENGTH = 50  # Minimum line length to identify body start
+    MIN_BODY_LINE_LENGTH = 20  # Minimum length for body content lines
 
     # Byline patterns - updated to handle middle initials, hyphens, apostrophes
     BYLINE_PATTERNS = [
@@ -80,8 +83,8 @@ class NewsArticleParser:
 
         metadata = NewsMetadata(raw_text=content)
 
-        # Get first 1000 characters for header analysis
-        header = content[:1000]
+        # Get first characters for header analysis
+        header = content[: self.MAX_HEADER_CHARS]
 
         # Extract publication
         for pub_name, pattern in self.PUBLICATION_PATTERNS.items():
@@ -155,7 +158,7 @@ class NewsArticleParser:
         for i, line in enumerate(lines[:search_limit]):
             line = line.strip()
             # Body usually starts after a blank line following headers
-            if len(line) > 50 and not line.isupper():  # Long line, not all caps
+            if len(line) > self.MIN_BODY_START_LINE_LENGTH and not line.isupper():
                 body_start = i
                 break
 
@@ -165,7 +168,7 @@ class NewsArticleParser:
             line = line.strip()
 
             # Skip short lines and page markers
-            if len(line) < 20:
+            if len(line) < self.MIN_BODY_LINE_LENGTH:
                 continue
             if re.match(r"^Page\s+\d+", line, re.IGNORECASE):
                 continue

@@ -40,6 +40,12 @@ class LegalMetadata:
 class LegalDocumentParser:
     """Parse legal documents to extract structured metadata."""
 
+    # Configuration constants - extracted for maintainability
+    MAX_HEADER_CHARS = 3000  # Characters to search for header metadata
+    MAX_ATTORNEY_SEARCH_CHARS = 5000  # Characters to search for attorney information
+    MIN_BODY_LINE_LENGTH = 10  # Minimum length for body content lines
+    MAX_BODY_LINES = 1000  # Maximum lines of body to extract
+
     # Case number patterns
     CASE_NUMBER_PATTERN = re.compile(r"Case\s+(\d+:\d+-[a-z]+-\d+)", re.IGNORECASE)
 
@@ -97,8 +103,8 @@ class LegalDocumentParser:
 
         metadata = LegalMetadata(raw_text=content)
 
-        # Get first few thousand characters for header analysis
-        header = content[:3000]
+        # Get first characters for header analysis
+        header = content[: self.MAX_HEADER_CHARS]
 
         # Extract case number
         case_match = self.CASE_NUMBER_PATTERN.search(header)
@@ -172,7 +178,8 @@ class LegalDocumentParser:
             re.IGNORECASE | re.DOTALL,
         )
 
-        for section_match in attorney_section_pattern.finditer(content[:5000]):
+        search_content = content[: self.MAX_ATTORNEY_SEARCH_CHARS]
+        for section_match in attorney_section_pattern.finditer(search_content):
             section_text = section_match.group(1)
 
             # Extract individual attorneys from section
@@ -220,7 +227,7 @@ class LegalDocumentParser:
             line = line.strip()
 
             # Skip short lines, page numbers, headers
-            if len(line) < 10:
+            if len(line) < self.MIN_BODY_LINE_LENGTH:
                 continue
             if re.match(r"^\d+$", line):  # Page numbers
                 continue
@@ -229,8 +236,8 @@ class LegalDocumentParser:
 
             body_lines.append(line)
 
-            # Return first 1000 lines of body content
-            if len(body_lines) >= 1000:
+            # Return first configured lines of body content
+            if len(body_lines) >= self.MAX_BODY_LINES:
                 break
 
         return "\n".join(body_lines)

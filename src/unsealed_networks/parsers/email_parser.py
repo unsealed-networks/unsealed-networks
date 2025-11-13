@@ -57,6 +57,9 @@ class EmailMetadata:
 class EmailParser:
     """Parse email documents to extract maximum metadata."""
 
+    # Configuration constants - extracted for maintainability
+    MAX_QUOTE_EXTRACTION_LINES = 50  # Maximum lines to extract for quoted text sections
+
     # Email address pattern
     EMAIL_PATTERN = re.compile(r"([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})")
 
@@ -375,8 +378,8 @@ class EmailParser:
 
                         quoted_lines.append(line)
 
-                        # Limit extraction to reasonable size (50 lines)
-                        if i >= 50:
+                        # Limit extraction to reasonable size
+                        if i >= self.MAX_QUOTE_EXTRACTION_LINES:
                             break
 
                     if quoted_lines:
