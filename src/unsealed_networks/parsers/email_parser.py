@@ -235,14 +235,14 @@ class EmailParser:
         if metadata.body:
             metadata.quoted_text = self._extract_quoted_text(metadata.body)
 
-    def _parse_email_address(self, addr_str: str) -> EmailAddress:
+    def _parse_email_address(self, addr_str: str) -> EmailAddress | None:
         """Parse a single email address with optional name.
 
         Args:
             addr_str: Email address string (e.g., "John Doe <john@example.com>")
 
         Returns:
-            EmailAddress object
+            EmailAddress object or None if no valid email found
         """
         addr_str = addr_str.strip()
 
@@ -261,8 +261,8 @@ class EmailParser:
             name_part = addr_str[: match.start()].strip()
             return EmailAddress(email=email, name=name_part if name_part else None)
 
-        # If no email found, treat whole thing as name
-        return EmailAddress(email="", name=addr_str if addr_str else None)
+        # If no email found, return None to indicate parsing failure
+        return None
 
     def _parse_email_list(self, addr_list_str: str) -> list[EmailAddress]:
         """Parse a list of email addresses.
@@ -271,7 +271,7 @@ class EmailParser:
             addr_list_str: Semicolon or comma-separated email addresses
 
         Returns:
-            List of EmailAddress objects
+            List of EmailAddress objects (invalid addresses are filtered out)
         """
         # Split by semicolon or comma
         parts = re.split(r"[;,]", addr_list_str)
@@ -280,7 +280,9 @@ class EmailParser:
         for part in parts:
             part = part.strip()
             if part:
-                addresses.append(self._parse_email_address(part))
+                addr = self._parse_email_address(part)
+                if addr:  # Only add valid addresses
+                    addresses.append(addr)
 
         return addresses
 
