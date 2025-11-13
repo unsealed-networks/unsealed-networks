@@ -60,14 +60,14 @@ class LegalDocumentParser:
     )
 
     # Party patterns (Plaintiff v. Defendant)
-    # Updated to allow mixed-case names, not just all-caps
+    # Updated to allow mixed-case names and multi-line party names
     PARTIES_PATTERN = re.compile(
         r"([A-Za-z][A-Za-z\s,.]+?),?\s+(?:et\s+al\.?)?,?\s+"
         r"(?:Plaintiff|Petitioner)s?,?\s+"
         r"v\.?\s+"
         r"([A-Za-z][A-Za-z\s,.]+?),?\s+(?:et\s+al\.?)?,?\s+"
         r"(?:Defendant|Respondent)s?",
-        re.IGNORECASE,
+        re.IGNORECASE | re.DOTALL,
     )
 
     # Attorney patterns

@@ -209,6 +209,18 @@ This ensures we discover what's actually in the data rather than only finding wh
 
 When receiving code review feedback (e.g., from Gemini Code Assist or other reviewers), **DO NOT blindly implement all suggestions**. Instead, follow this critical evaluation process:
 
+### Step 0: Filter for Unresolved Comments
+
+**IMPORTANT**: When fetching code review comments from GitHub, only consider **unresolved** comments. Resolved comments have already been addressed.
+
+When using the GitHub API to fetch comments:
+```bash
+# Filter for unresolved comments only
+gh api repos/owner/repo/pulls/PR_NUMBER/comments --jq '.[] | select(.resolved != true)'
+```
+
+Skip any comments that have been marked as resolved - they represent issues that have already been handled.
+
 ### Step 1: Analyze Each Suggestion
 
 For each code review comment, evaluate:
