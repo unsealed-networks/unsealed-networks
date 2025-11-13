@@ -133,8 +133,14 @@ class DocumentClassifier:
         if len(text_lines) < 10:
             return False
 
-        # Look for narrative markers
-        has_first_person = bool(re.search(r"\bI\s+(?:have|was|am|had|did)\b", content))
+        # Look for narrative markers - expanded verb list for better detection
+        has_first_person = bool(
+            re.search(
+                r"\bI\s+(?:have|was|am|had|did|said|went|saw|thought|felt|believe|remember|knew)\b",
+                content,
+                re.IGNORECASE,
+            )
+        )
         has_long_paragraphs = any(len(line) > 200 for line in text_lines)
 
         return has_first_person and has_long_paragraphs

@@ -32,11 +32,15 @@ class NewsMetadata:
 class NewsArticleParser:
     """Parse news articles to extract structured metadata."""
 
-    # Byline patterns
+    # Configuration constants - extracted from magic numbers for maintainability
+    MAX_HEADER_LINES = 50  # Maximum lines to search for article header
+    MAX_BODY_LINES = 1000  # Maximum body lines to extract
+
+    # Byline patterns - updated to handle middle initials, hyphens, apostrophes
     BYLINE_PATTERNS = [
-        re.compile(r"^By\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)", re.MULTILINE),
+        re.compile(r"^By\s+([A-Z][A-Za-z.'\\s-]+?)(?:,|$)", re.MULTILINE),
         re.compile(
-            r"^([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+),\s+(?:Staff\s+Writer|Correspondent)", re.MULTILINE
+            r"^([A-Z][A-Za-z.'\\s-]+?)(?:,|$)\s+(?:Staff\s+Writer|Correspondent)", re.MULTILINE
         ),
     ]
 
@@ -100,9 +104,9 @@ class NewsArticleParser:
                 metadata.publication_date = self._parse_date(match)
                 break
 
-        # Extract headline (usually first all-caps line or bold text)
+        # Extract headline (can be Title Case or all-caps)
         headline_match = re.search(
-            r"^([A-Z][A-Z\s]{10,100})$",
+            r"^([A-Z][a-z]+(?:\s+[A-Za-z].*)+|[A-Z\s]{10,100})$",
             header,
             re.MULTILINE,
         )
@@ -145,15 +149,17 @@ class NewsArticleParser:
         lines = content.split("\n")
 
         # Find where body starts (after byline/date/headline)
+        # Search within MAX_HEADER_LINES instead of hardcoded 30
         body_start = 0
-        for i, line in enumerate(lines[:30]):  # Check first 30 lines
+        search_limit = min(len(lines), self.MAX_HEADER_LINES)
+        for i, line in enumerate(lines[:search_limit]):
             line = line.strip()
             # Body usually starts after a blank line following headers
             if len(line) > 50 and not line.isupper():  # Long line, not all caps
                 body_start = i
                 break
 
-        # Extract body lines
+        # Extract body lines up to MAX_BODY_LINES
         body_lines = []
         for line in lines[body_start:]:
             line = line.strip()
@@ -166,8 +172,8 @@ class NewsArticleParser:
 
             body_lines.append(line)
 
-            # Stop at reasonable length
-            if len(body_lines) > 500:
+            # Stop at configurable length instead of hardcoded 500
+            if len(body_lines) >= self.MAX_BODY_LINES:
                 break
 
         return "\n\n".join(body_lines)

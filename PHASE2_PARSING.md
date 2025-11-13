@@ -184,12 +184,20 @@ Multiple signals:
 
 ## Next Steps
 
-### 1. Investigate "Other" Documents (Priority: High)
+### 1. Investigate "Other" Documents with LLM-Assisted Classification (Priority: High) - **PHASE 3**
 
-**Action**: Use agent to analyze sample "other" documents and categorize
-- Create sub-classifiers for common patterns
-- Identify if additional parsers needed
-- Document what can't be parsed (corrupted, OCR errors, etc.)
+**Approach**: Use local Ollama LLMs to classify the 2,520 "other" documents (87% of dataset)
+- Send first ~500 words to LLM (deepseek-r1:8b or mistral) to classify document type
+- Build histogram of discovered document types (CVs, transcripts, letters, etc.)
+- Create specialized parsers for common types found
+- Document unprocessable documents (corrupted, OCR errors, etc.)
+
+**Why LLM**: Regex patterns failed to identify these diverse document types - LLMs can understand document structure and content semantically
+
+**Available Models on Local Ollama**:
+- deepseek-r1:8b (8.2B) - Reasoning model for complex classification
+- mistral:latest (7.2B) - Fast, general purpose
+- llama3.2:latest (3.2B) - Quick inference
 
 ### 2. Improve Legal Parser (Priority: Medium)
 
@@ -312,6 +320,33 @@ CREATE TABLE news_metadata (
 - Custom entity recognizers
 
 **Philosophy**: Extract entities FROM the data, don't hardcode names to search for.
+
+### 8. Future LLM-Assisted Parser Enhancements (Ideas for Later Phases)
+
+**Option A: LLM Fallback for Failed Extractions**
+- When regex patterns fail (e.g., party extraction at 0%), use LLM as fallback
+- Example: "Who are the plaintiffs and defendants in this legal document?"
+- Hybrid approach: Try regex first (fast), fall back to LLM if no match
+
+**Option B: News Headline/Author Extraction with LLM**
+- Current regex-based extraction: 9% headlines, 20% authors
+- LLM can understand document structure better than patterns
+- Ask: "What is the headline and author of this article?"
+
+**Option C: Document Structure Understanding**
+- When standard patterns fail, ask LLM about structure
+- "Where does the email body start?"
+- "What are the key sections of this document?"
+
+**Option D: Embedding-Based Document Clustering**
+- Use mxbai-embed-large or nomic-embed-text for embeddings
+- Cluster similar documents to discover patterns
+- Build specialized parsers for each cluster
+
+**Option E: Entity Extraction with Local LLM**
+- Alternative to spaCy/Stanford NER
+- Ask LLM: "List all people and organizations mentioned in this text"
+- Can understand context better than pure NER models
 
 ## File Locations
 

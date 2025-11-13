@@ -54,11 +54,12 @@ class LegalDocumentParser:
     )
 
     # Party patterns (Plaintiff v. Defendant)
+    # Updated to allow mixed-case names, not just all-caps
     PARTIES_PATTERN = re.compile(
-        r"([A-Z][A-Z\s,.]+?),?\s+(?:et\s+al\.?)?,?\s+"
+        r"([A-Za-z][A-Za-z\s,.]+?),?\s+(?:et\s+al\.?)?,?\s+"
         r"(?:Plaintiff|Petitioner)s?,?\s+"
         r"v\.?\s+"
-        r"([A-Z][A-Z\s,.]+?),?\s+(?:et\s+al\.?)?,?\s+"
+        r"([A-Za-z][A-Za-z\s,.]+?),?\s+(?:et\s+al\.?)?,?\s+"
         r"(?:Defendant|Respondent)s?",
         re.IGNORECASE,
     )
@@ -196,10 +197,26 @@ class LegalDocumentParser:
         """
         lines = content.split("\n")
 
-        # Skip first ~20 lines (headers)
-        # Skip lines with page numbers, headers, footers
+        # Find where body starts by looking for substantial content
+        # Body typically starts after headers/case info/party listings
+        body_start = 0
+        for i, line in enumerate(lines):
+            stripped = line.strip()
+
+            # Look for first substantial line (>50 chars, not all caps)
+            # that doesn't look like a header
+            if (
+                len(stripped) > 50
+                and not stripped.isupper()
+                and not re.match(r"^Case\s+\d+:", stripped)
+                and not re.match(r"^Document\s+\d+", stripped)
+            ):
+                body_start = i
+                break
+
+        # Extract body lines, filtering out page numbers and case headers
         body_lines = []
-        for line in lines[20:]:  # Skip first 20 lines
+        for line in lines[body_start:]:
             line = line.strip()
 
             # Skip short lines, page numbers, headers
@@ -212,7 +229,11 @@ class LegalDocumentParser:
 
             body_lines.append(line)
 
-        return "\n".join(body_lines[:1000])  # Return first 1000 lines
+            # Return first 1000 lines of body content
+            if len(body_lines) >= 1000:
+                break
+
+        return "\n".join(body_lines)
 
     def _parse_date(self, date_str: str) -> datetime | None:
         """Parse legal document date (MM/DD/YYYY or MM/DD/YY).

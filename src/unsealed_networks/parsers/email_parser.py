@@ -3,6 +3,7 @@
 import re
 from dataclasses import dataclass, field
 from datetime import datetime
+from email.utils import parsedate_to_datetime
 from pathlib import Path
 
 
@@ -138,16 +139,44 @@ class EmailParser:
             "reply-to": r"^Reply-To:\s*(.+)$",
         }
 
+        # Pre-process lines to join continuation lines
+        joined_lines = []
         i = 0
         while i < len(lines):
-            line = lines[i].strip()
+            line = lines[i]
 
             # Empty line signals end of headers
-            if not line:
-                return i + 1
+            if not line.strip():
+                header_end = i + 1
+                break
+
+            # If this is a continuation line (starts with space/tab), skip it
+            # It will be joined by the logic below
+            if line.startswith((" ", "\t")):
+                i += 1
+                continue
+
+            # Start with this line
+            current_line = line
+
+            # Look ahead for continuation lines
+            j = i + 1
+            while j < len(lines) and lines[j].startswith((" ", "\t")):
+                # Join continuation line, removing the leading whitespace
+                current_line += " " + lines[j].strip()
+                j += 1
+
+            joined_lines.append(current_line)
+            i = j
+        else:
+            # If we exit the loop without finding an empty line
+            header_end = len(lines)
+
+        # Now parse the joined header lines
+        for line in joined_lines:
+            line = line.strip()
 
             # Check each header pattern
-            matched = False
             for header_name, pattern in header_patterns.items():
                 match = re.match(pattern, line, re.IGNORECASE)
                 if match:
@@ -178,17 +207,9 @@ class EmailParser:
                     elif header_name == "reply-to":
                         metadata.reply_to = self._parse_email_address(value)
 
-                    matched = True
                     break
 
-            # Handle continuation lines (headers can span multiple lines)
-            if not matched and i > 0 and line.startswith((" ", "\t")):
-                # This is a continuation of the previous header
-                pass
-
-            i += 1
-
-        return i
+        return header_end
 
     def _parse_body(self, body_lines: list[str], metadata: EmailMetadata):
         """Parse email body, extracting main content, quotes, and signature.
@@ -263,12 +284,21 @@ class EmailParser:
     def _parse_date(self, date_str: str) -> datetime | None:
         """Parse email date string to datetime object.
 
+        Supports both RFC 5322 format (standard email dates) and custom formats.
+
         Args:
-            date_str: Date string (e.g., "10/31/2015 11:24:38 AM")
+            date_str: Date string (RFC 5322 or custom "MM/DD/YYYY HH:MM:SS AM/PM" format)
 
         Returns:
             datetime object or None if parsing fails
         """
+        # Try RFC 5322 format first (standard email Date header)
+        try:
+            return parsedate_to_datetime(date_str)
+        except (TypeError, ValueError):
+            pass
+
+        # Fall back to custom format for non-standard dates (e.g., "Sent:" header)
         match = self.DATE_PATTERN.match(date_str)
         if not match:
             return None
@@ -309,18 +339,47 @@ class EmailParser:
         for pattern in self.QUOTE_PATTERNS:
             matches = pattern.finditer(body)
             for match in matches:
-                # Extract the quoted section
+                # Extract the quoted section starting from the match
                 start = match.start()
-                # Find the end of the quote (next non-quoted line or end)
-                lines = body[start:].split("\n")
-                quoted_lines = []
-                for line in lines:
-                    if line.strip().startswith(">") or not line.strip():
-                        quoted_lines.append(line)
-                    elif quoted_lines:  # Stop at first non-quoted line
-                        break
+                remaining_text = body[start:]
 
-                if quoted_lines:
-                    quoted_sections.append("\n".join(quoted_lines).strip())
+                # Different extraction strategies based on pattern type
+                # Check if this is a > prefix pattern
+                if pattern.pattern.startswith("^>"):
+                    # Extract lines with > prefix
+                    lines = remaining_text.split("\n")
+                    quoted_lines = []
+                    for line in lines:
+                        if line.strip().startswith(">") or not line.strip():
+                            quoted_lines.append(line)
+                        elif quoted_lines:  # Stop at first non-quoted line
+                            break
+                    if quoted_lines:
+                        quoted_sections.append("\n".join(quoted_lines).strip())
+
+                else:
+                    # For header-style quotes ("On ... wrote:", "Original Message", etc.)
+                    # Extract until double newline or a significant break
+                    lines = remaining_text.split("\n")
+                    quoted_lines = []
+                    empty_line_count = 0
+
+                    for i, line in enumerate(lines):
+                        # Stop at double empty lines (paragraph break)
+                        if not line.strip():
+                            empty_line_count += 1
+                            if empty_line_count >= 2:
+                                break
+                        else:
+                            empty_line_count = 0
+
+                        quoted_lines.append(line)
+
+                        # Limit extraction to reasonable size (50 lines)
+                        if i >= 50:
+                            break
+
+                    if quoted_lines:
+                        quoted_sections.append("\n".join(quoted_lines).strip())
 
         return quoted_sections
