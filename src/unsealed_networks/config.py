@@ -2,6 +2,18 @@
 
 import os
 from dataclasses import dataclass
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+# Load environment variables from .env file if it exists
+# This allows users to configure via .env instead of shell environment
+dotenv_path = Path.cwd() / ".env"
+if dotenv_path.exists():
+    load_dotenv(dotenv_path)
+else:
+    # Also try loading from project root if running from subdirectory
+    load_dotenv()
 
 
 @dataclass
