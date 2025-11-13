@@ -60,3 +60,4 @@ source_text/**/*.txt
 source_text/**/*.zip
 source_text/**/*.tgz
 !source_text/.gitkeep
+rootkey.csv

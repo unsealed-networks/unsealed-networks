@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
 """Command-line interface for unsealed-networks."""
 
+import hashlib
 import json
+import tarfile
 from datetime import datetime
 from pathlib import Path
 
+import requests
 import typer
 from rich.console import Console
+from rich.progress import Progress
 from rich.table import Table
 
 from .database.loader import load_documents
@@ -180,6 +184,135 @@ def load_db(
 
     console.print(f"\n[bold green]✓ Database created:[/bold green] {db_path}")
     console.print(f"  Size: {db_path.stat().st_size / (1024 * 1024):.1f} MB")
+
+
+@app.command()
+def download_data(
+    target_dir: Path = typer.Option(
+        ".", "--target-dir", "-t", help="Target directory for downloads"
+    ),
+    skip_source: bool = typer.Option(False, "--skip-source", help="Skip source data download"),
+    skip_database: bool = typer.Option(False, "--skip-database", help="Skip database download"),
+):
+    """Download source data and database from S3."""
+    # S3 URLs and checksums
+    S3_BASE = "https://unsealed-networks-public.s3.us-east-2.amazonaws.com"
+    FILES = {
+        "source": {
+            "url": f"{S3_BASE}/source/house-oversight/7th-production/Epstein-Seventh-Production-Text-Only.tgz",  # noqa: E501
+            "checksum": "03d688f39e6740a43590742a636b82a4f9e8ef673675dceb65d8301846bc704a",
+            "output": "source_text/7th_production/Epstein-Seventh-Production-Text-Only.tgz",
+            "extract_to": "source_text/7th_production",
+        },
+        "database": {
+            "url": f"{S3_BASE}/database/unsealed-v0.0.1.db",
+            "checksum": "bce1efef6dc0d309359b4a5c74ac9c0b5f8040c54f39c1beb7c8bb2b14cc4208",
+            "output": "data/unsealed.db",
+        },
+    }
+
+    def download_file(url: str, output_path: Path) -> None:
+        """Download file with progress bar."""
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+
+        response = requests.get(url, stream=True, timeout=30)
+        response.raise_for_status()
+
+        total_size = int(response.headers.get("content-length", 0))
+
+        with Progress() as progress:
+            task = progress.add_task(f"Downloading {output_path.name}...", total=total_size)
+
+            with open(output_path, "wb") as f:
+                for chunk in response.iter_content(chunk_size=8192):
+                    f.write(chunk)
+                    progress.update(task, advance=len(chunk))
+
+    def verify_checksum(filepath: Path, expected: str) -> bool:
+        """Verify SHA256 checksum."""
+        sha256 = hashlib.sha256()
+
+        with open(filepath, "rb") as f:
+            for chunk in iter(lambda: f.read(8192), b""):
+                sha256.update(chunk)
+
+        return sha256.hexdigest() == expected
+
+    target_path = Path(target_dir).resolve()
+
+    # Download source data
+    if not skip_source:
+        source_info = FILES["source"]
+        output_file = target_path / source_info["output"]
+
+        if output_file.exists():
+            console.print(f"[yellow]Source file already exists:[/yellow] {output_file}")
+            console.print("[yellow]Verifying checksum...[/yellow]")
+
+            if verify_checksum(output_file, source_info["checksum"]):
+                console.print("[green]✓ Checksum verified[/green]")
+            else:
+                console.print("[red]✗ Checksum mismatch! Re-downloading...[/red]")
+                output_file.unlink()
+                download_file(source_info["url"], output_file)
+        else:
+            console.print("[bold]Downloading source data...[/bold]")
+            download_file(source_info["url"], output_file)
+
+        # Verify checksum
+        console.print("[yellow]Verifying checksum...[/yellow]")
+        if not verify_checksum(output_file, source_info["checksum"]):
+            console.print("[red]✗ Checksum verification failed![/red]")
+            raise typer.Exit(1)
+
+        console.print("[green]✓ Checksum verified[/green]")
+
+        # Extract if needed
+        extract_dir = target_path / source_info["extract_to"]
+        if not (extract_dir / "TEXT").exists():
+            console.print(f"[bold]Extracting to {extract_dir}...[/bold]")
+            with tarfile.open(output_file, "r:gz") as tar:
+                tar.extractall(extract_dir)
+            console.print("[green]✓ Extraction complete[/green]")
+        else:
+            console.print("[dim]TEXT directory already exists, skipping extraction[/dim]")
+
+    # Download database
+    if not skip_database:
+        db_info = FILES["database"]
+        output_file = target_path / db_info["output"]
+
+        if output_file.exists():
+            console.print(f"[yellow]Database already exists:[/yellow] {output_file}")
+            console.print("[yellow]Verifying checksum...[/yellow]")
+
+            if verify_checksum(output_file, db_info["checksum"]):
+                console.print("[green]✓ Checksum verified[/green]")
+            else:
+                console.print("[red]✗ Checksum mismatch! Re-downloading...[/red]")
+                output_file.unlink()
+                download_file(db_info["url"], output_file)
+        else:
+            console.print("[bold]Downloading database...[/bold]")
+            download_file(db_info["url"], output_file)
+
+        # Verify checksum
+        console.print("[yellow]Verifying checksum...[/yellow]")
+        if not verify_checksum(output_file, db_info["checksum"]):
+            console.print("[red]✗ Checksum verification failed![/red]")
+            raise typer.Exit(1)
+
+        console.print("[green]✓ Checksum verified[/green]")
+
+    console.print("\n[bold green]✓ Download complete![/bold green]")
+    console.print(f"\n[bold]Files downloaded to:[/bold] {target_path}")
+
+    if not skip_source:
+        console.print(f"  Source: {target_path / FILES['source']['output']}")
+        console.print(f"  Extracted to: {target_path / FILES['source']['extract_to']}/TEXT")
+
+    if not skip_database:
+        console.print(f"  Database: {target_path / FILES['database']['output']}")
 
 
 def main():
