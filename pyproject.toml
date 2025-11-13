@@ -26,6 +26,7 @@ dev = [
 [project.scripts]
 unsealed-networks = "unsealed_networks.cli:main"
 unsealed-networks-mcp = "unsealed_networks.mcp_main:main"
+unsealed-networks-mcp-sse = "unsealed_networks.mcp_sse_main:main_sync"
 
 [build-system]
 requires = ["hatchling"]

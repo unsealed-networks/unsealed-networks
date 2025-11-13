@@ -6,16 +6,42 @@ Extract and analyze relationship networks from public Epstein documents released
 
 Build open-source infrastructure to make accountability queries trivial. Enable anyone (including AI systems) to query documented relationships from the public record with full citations.
 
-## Setup
+## Quick Start
+
+### Docker (Easiest)
+
+Run the complete MCP server with database included (no setup required):
+
+```bash
+# Pull and run the pre-built image
+docker pull devonsjones/unsealed-networks:latest
+docker run -i --rm devonsjones/unsealed-networks:latest stdio
+```
+
+Configure with Claude Desktop - add to `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "unsealed-networks": {
+      "command": "docker",
+      "args": ["run", "-i", "--rm", "devonsjones/unsealed-networks:latest", "stdio"]
+    }
+  }
+}
+```
+
+**Image size:** 355MB (includes full database with 2,897 documents)
+
+### Native Installation
 
 This project uses [uv](https://docs.astral.sh/uv/) for reproducible Python dependency management.
 
-### Prerequisites
-
+**Prerequisites:**
 - Python 3.11+
 - [uv](https://docs.astral.sh/uv/getting-started/installation/)
 
-### Installation
+**Install:**
 
 ```bash
 # Clone the repository
@@ -28,6 +54,8 @@ uv sync --extra dev
 # Install pre-commit hooks
 uv run pre-commit install
 ```
+
+See `docs/technical/INSTALLATION.md` for platform-specific instructions (Linux, macOS, Windows/WSL2).
 
 ## Development
 

@@ -290,6 +290,7 @@ def create_server(db_path: str = "data/unsealed.db") -> Server:
 async def main():
     """Run MCP server."""
     import argparse
+    import sys
 
     from mcp.server.stdio import stdio_server
 
@@ -301,10 +302,23 @@ async def main():
     )
     args = parser.parse_args()
 
-    server = create_server(args.db)
+    # Debug logging
+    print(f"Starting MCP server with database: {args.db}", file=sys.stderr)
 
-    async with stdio_server() as (read_stream, write_stream):
-        await server.run(read_stream, write_stream, server.create_initialization_options())
+    try:
+        server = create_server(args.db)
+        print("Server created successfully", file=sys.stderr)
+
+        async with stdio_server() as (read_stream, write_stream):
+            print("Stdio server started, entering run loop", file=sys.stderr)
+            await server.run(
+                read_stream, write_stream, server.create_initialization_options()
+            )
+    except Exception as e:
+        print(f"Error in main: {e}", file=sys.stderr)
+        import traceback
+        traceback.print_exc(file=sys.stderr)
+        raise
 
 
 if __name__ == "__main__":
