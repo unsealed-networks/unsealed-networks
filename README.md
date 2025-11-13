@@ -14,8 +14,8 @@ Run the complete MCP server with database included (no setup required):
 
 ```bash
 # Pull and run the pre-built image
-docker pull devonsjones/unsealed-networks:latest
-docker run -i --rm devonsjones/unsealed-networks:latest stdio
+docker pull devonjones/unsealed-networks:latest
+docker run -i --rm devonjones/unsealed-networks:latest stdio
 ```
 
 Configure with Claude Desktop - add to `claude_desktop_config.json`:
@@ -25,7 +25,7 @@ Configure with Claude Desktop - add to `claude_desktop_config.json`:
   "mcpServers": {
     "unsealed-networks": {
       "command": "docker",
-      "args": ["run", "-i", "--rm", "devonsjones/unsealed-networks:latest", "stdio"]
+      "args": ["run", "-i", "--rm", "devonjones/unsealed-networks:latest", "stdio"]
     }
   }
 }

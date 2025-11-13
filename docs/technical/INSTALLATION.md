@@ -156,10 +156,10 @@ The Docker image includes the complete database (2,897 documents, ~80MB) so you 
 
 ```bash
 # Pull pre-built image (recommended)
-docker pull devonsjones/unsealed-networks:latest
+docker pull devonjones/unsealed-networks:latest
 
 # Run with stdio (for Claude Desktop)
-docker run -i --rm devonsjones/unsealed-networks:latest stdio
+docker run -i --rm devonjones/unsealed-networks:latest stdio
 ```
 
 **Or Build Locally:**
@@ -185,7 +185,7 @@ docker run -i --rm unsealed-networks stdio
         "run",
         "-i",
         "--rm",
-        "devonsjones/unsealed-networks:latest",
+        "devonjones/unsealed-networks:latest",
         "stdio"
       ],
       "env": {}
@@ -200,7 +200,7 @@ docker run -i --rm unsealed-networks stdio
 docker run -d \
   -p 8765:8765 \
   --name unsealed-networks \
-  devonsjones/unsealed-networks:latest sse
+  devonjones/unsealed-networks:latest sse
 ```
 
 **Using a Custom Database (Optional):**
@@ -211,7 +211,7 @@ If you want to use a different database, mount it as a volume:
 docker run -i --rm \
   -v $(pwd)/data:/data:ro \
   -e DB_PATH=/data/unsealed.db \
-  devonsjones/unsealed-networks:latest stdio
+  devonjones/unsealed-networks:latest stdio
 ```
 
 **Docker Compose:**
@@ -223,7 +223,7 @@ version: '3.8'
 
 services:
   unsealed-networks:
-    image: devonsjones/unsealed-networks:latest
+    image: devonjones/unsealed-networks:latest
     container_name: unsealed-networks-mcp
     ports:
       - "8765:8765"

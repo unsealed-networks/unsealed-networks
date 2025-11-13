@@ -32,22 +32,22 @@ docker login
 
 ```bash
 # Tag with your username
-docker tag unsealed-networks devonsjones/unsealed-networks:latest
+docker tag unsealed-networks devonjones/unsealed-networks:latest
 
 # Optional: Also tag with version
-docker tag unsealed-networks devonsjones/unsealed-networks:0.0.1
+docker tag unsealed-networks devonjones/unsealed-networks:0.0.1
 
 # Push to Docker Hub
-docker push devonsjones/unsealed-networks:latest
-docker push devonsjones/unsealed-networks:0.0.1  # if versioned
+docker push devonjones/unsealed-networks:latest
+docker push devonjones/unsealed-networks:0.0.1  # if versioned
 ```
 
 ## Verify
 
 ```bash
 # Pull and test from Docker Hub
-docker pull devonsjones/unsealed-networks:latest
-docker run -i --rm devonsjones/unsealed-networks:latest stdio
+docker pull devonjones/unsealed-networks:latest
+docker run -i --rm devonjones/unsealed-networks:latest stdio
 ```
 
 ## Image Details
@@ -73,7 +73,7 @@ docker buildx inspect --bootstrap
 # Build and push multi-platform
 docker buildx build \
   --platform linux/amd64,linux/arm64 \
-  -t devonsjones/unsealed-networks:latest \
+  -t devonjones/unsealed-networks:latest \
   --push \
   .
 ```
@@ -92,8 +92,8 @@ Once published, anyone can run:
 
 ```bash
 # Pull and run
-docker pull devonsjones/unsealed-networks:latest
-docker run -i --rm devonsjones/unsealed-networks:latest stdio
+docker pull devonjones/unsealed-networks:latest
+docker run -i --rm devonjones/unsealed-networks:latest stdio
 ```
 
 No source code, no database setup, no Python installation required!
@@ -106,10 +106,10 @@ When updating the database or code:
 2. Rebuild database: `uv run unsealed-networks load-db ...`
 3. Rebuild image: `docker build -t unsealed-networks .`
 4. Test locally
-5. Tag with new version: `docker tag unsealed-networks devonsjones/unsealed-networks:0.0.2`
-6. Push: `docker push devonsjones/unsealed-networks:0.0.2`
-7. Update latest tag: `docker tag unsealed-networks devonsjones/unsealed-networks:latest`
-8. Push latest: `docker push devonsjones/unsealed-networks:latest`
+5. Tag with new version: `docker tag unsealed-networks devonjones/unsealed-networks:0.0.2`
+6. Push: `docker push devonjones/unsealed-networks:0.0.2`
+7. Update latest tag: `docker tag unsealed-networks devonjones/unsealed-networks:latest`
+8. Push latest: `docker push devonjones/unsealed-networks:latest`
 
 ## Security Notes
 
