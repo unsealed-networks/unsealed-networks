@@ -15,6 +15,7 @@ from rich.table import Table
 
 from .database.entity_loader import batch_extract_entities
 from .database.loader import load_documents
+from .database.queries import find_email_threads, find_entity_mentions, get_dlq_documents
 from .survey.scanner import DocumentScanner
 
 app = typer.Typer(help="Unsealed Networks - Document analysis toolkit")
@@ -359,58 +360,31 @@ def query_entity(
     limit: int = typer.Option(20, "--limit", "-l", help="Maximum results to show"),
 ):
     """Find all documents mentioning an entity."""
-    import sqlite3
-
     if not db_path.exists():
         console.print(f"[red]Database not found:[/red] {db_path}")
         raise typer.Exit(1)
 
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
+    results = find_entity_mentions(db_path, entity_name, entity_type, limit)
 
-    # Find matching entities
-    query = "SELECT * FROM entities WHERE text LIKE ? OR normalized_text LIKE ?"
-    params = [f"%{entity_name}%", f"%{entity_name.lower()}%"]
-
-    if entity_type:
-        query += " AND type = ?"
-        params.append(entity_type)
-
-    entities = conn.execute(query, params).fetchall()
-
-    if not entities:
+    if not results["entities"]:
         console.print(f"[yellow]No entities found matching:[/yellow] {entity_name}")
-        conn.close()
         return
 
-    console.print(f"\n[bold]Found {len(entities)} matching entities:[/bold]")
+    console.print(f"\n[bold]Found {len(results['entities'])} matching entities:[/bold]")
 
-    for entity in entities:
+    for entity in results["entities"]:
         console.print(f"\n[cyan]{entity['text']}[/cyan] ({entity['type']})")
         console.print(f"  Occurrences: {entity['occurrence_count']}")
         console.print(f"  First seen: {entity['first_seen_doc_id']}")
 
-        # Find documents
-        docs = conn.execute(
-            """
-            SELECT d.doc_id, d.doc_type, de.confidence, de.context
-            FROM document_entities de
-            JOIN documents d ON de.doc_id = d.doc_id
-            WHERE de.entity_id = ?
-            ORDER BY de.confidence DESC
-            LIMIT ?
-            """,
-            (entity["entity_id"], limit),
-        ).fetchall()
-
-        if docs:
+        if entity["documents"]:
             table = Table(title=f"Documents mentioning '{entity['text']}'")
             table.add_column("Doc ID", style="cyan")
             table.add_column("Type", style="magenta")
             table.add_column("Confidence", justify="right", style="green")
             table.add_column("Context", style="dim")
 
-            for doc in docs:
+            for doc in entity["documents"]:
                 context = doc["context"][:60] + "..." if doc["context"] else "N/A"
                 table.add_row(
                     doc["doc_id"],
@@ -421,8 +395,6 @@ def query_entity(
 
             console.print(table)
 
-    conn.close()
-
 
 @app.command()
 def find_threads(
@@ -431,33 +403,14 @@ def find_threads(
     limit: int = typer.Option(20, "--limit", "-l", help="Maximum results to show"),
 ):
     """Find email threads involving a participant."""
-    import sqlite3
-
     if not db_path.exists():
         console.print(f"[red]Database not found:[/red] {db_path}")
         raise typer.Exit(1)
 
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
-
-    # Search thread messages
-    threads = conn.execute(
-        """
-        SELECT tm.doc_id, tm.author, tm.date, tm.date_str, tm.content_preview,
-               d.doc_type, em.subject, em.from_addr, em.to_addrs
-        FROM thread_messages tm
-        JOIN documents d ON tm.doc_id = d.doc_id
-        LEFT JOIN email_metadata em ON tm.doc_id = em.doc_id
-        WHERE tm.author LIKE ?
-        ORDER BY tm.date DESC
-        LIMIT ?
-        """,
-        (f"%{participant}%", limit),
-    ).fetchall()
+    threads = find_email_threads(db_path, participant, limit)
 
     if not threads:
         console.print(f"[yellow]No threads found for:[/yellow] {participant}")
-        conn.close()
         return
 
     console.print(f"\n[bold]Found {len(threads)} thread messages for:[/bold] {participant}\n")
@@ -473,8 +426,6 @@ def find_threads(
             console.print(f"  Preview: {preview}...")
         console.print()
 
-    conn.close()
-
 
 @app.command()
 def show_dlq(
@@ -482,30 +433,14 @@ def show_dlq(
     limit: int = typer.Option(20, "--limit", "-l", help="Maximum results to show"),
 ):
     """Show documents with parsing issues (Dead Letter Queue)."""
-    import sqlite3
-
     if not db_path.exists():
         console.print(f"[red]Database not found:[/red] {db_path}")
         raise typer.Exit(1)
 
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
-
-    # Find emails with parsing issues
-    dlq = conn.execute(
-        """
-        SELECT em.doc_id, em.subject, em.from_addr, em.parsing_issues, d.filepath
-        FROM email_metadata em
-        JOIN documents d ON em.doc_id = d.doc_id
-        WHERE em.parsing_issues IS NOT NULL AND em.parsing_issues != '[]'
-        LIMIT ?
-        """,
-        (limit,),
-    ).fetchall()
+    dlq = get_dlq_documents(db_path, limit)
 
     if not dlq:
         console.print("[green]✓ No documents with parsing issues![/green]")
-        conn.close()
         return
 
     console.print(f"\n[bold yellow]Found {len(dlq)} documents with parsing issues:[/bold yellow]\n")
@@ -516,14 +451,10 @@ def show_dlq(
         console.print(f"  From: {item['from_addr']}")
         console.print(f"  File: {item['filepath']}")
 
-        # Parse issues JSON
-        issues = json.loads(item["parsing_issues"])
-        console.print(f"  Issues ({len(issues)}):")
-        for issue in issues:
+        console.print(f"  Issues ({len(item['parsing_issues'])}):")
+        for issue in item["parsing_issues"]:
             console.print(f"    - {issue}")
         console.print()
-
-    conn.close()
 
 
 def main():
