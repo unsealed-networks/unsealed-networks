@@ -111,10 +111,20 @@ class EmailParser:
             r"(?:søn|son|man|tir|ons|tor|fre|lør)\.\s+(\d{1,2}\.\s+\w+\.\s+\d{4}\s+kl\.\s+[\d:]+)\s+skrev\s+(.+?)\s*<([^>]+)>:",
             re.IGNORECASE,
         ),
+        # English with "wrote:" on same line: "On Apr 5, 2018, at 1:41 PM, Name <email> wrote:"
+        re.compile(
+            r"On\s+(\w+\s+\d{1,2},\s+\d{4},?\s+at\s+[\d:]+\s+(?:AM|PM)),\s*(.+?)\s*<([^>]+)>\s*wrote:",
+            re.IGNORECASE,
+        ),
         # English: "On Sun, Jun 24, 2018 at 3:28 PM, Name" (may have newlines before "wrote:")
         # Look for the pattern without requiring "wrote:" in the same match
         re.compile(
             r"On\s+((?:Sun|Mon|Tue|Wed|Thu|Fri|Sat),\s+\w+\s+\d{1,2},\s+\d{4}\s+at\s+[\d:]+\s+(?:AM|PM)),\s*([^<\n]+)",
+            re.IGNORECASE,
+        ),
+        # English without weekday: "On Apr 5, 2018, at 2:04 PM, Name"
+        re.compile(
+            r"On\s+(\w+\s+\d{1,2},\s+\d{4},?\s+at\s+[\d:]+\s+(?:AM|PM)),\s*([^<\n]+)",
             re.IGNORECASE,
         ),
         # Forwarded headers: "From: ... Sent: ... To: ..."
@@ -376,12 +386,19 @@ class EmailParser:
         except (TypeError, ValueError, AttributeError):
             pass
 
-        # Try "Sun, Jun 24, 2018 at 3:28 PM" format
+        # Try "Sun, Jun 24, 2018 at 3:28 PM" format (with weekday)
         try:
             # Remove "at" and weekday prefix
             cleaned = re.sub(r"^(?:Sun|Mon|Tue|Wed|Thu|Fri|Sat),\s*", "", date_str)
             cleaned = cleaned.replace(" at ", " ")
             return datetime.strptime(cleaned, "%b %d, %Y %I:%M %p")
+        except (ValueError, AttributeError):
+            pass
+
+        # Try "Apr 5, 2018, at 2:04 PM" format (without weekday)
+        try:
+            cleaned = date_str.replace(" at ", " ").replace(",", "")
+            return datetime.strptime(cleaned, "%b %d %Y %I:%M %p")
         except (ValueError, AttributeError):
             pass
 
