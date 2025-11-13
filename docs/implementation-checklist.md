@@ -340,6 +340,45 @@
 - [ ] Add historical tracking
 - [ ] Handle document updates/corrections
 
+### Additional Data Sources (epstein-network-graph integration)
+- [ ] Integrate Flight Logs (1991-2019)
+  - [ ] Download flight logs from DocumentCloud
+    - URL: https://www.documentcloud.org/documents/6404379-Epstein-Flight-Logs-Lolita-Express/
+    - 118 pages of passenger manifests and flight records
+  - [ ] Parse JSON/CSV passenger manifests
+  - [ ] Extract passenger names, dates, routes, aircraft tail numbers
+  - [ ] Build FlightLogParser for structured data
+  - [ ] Link passengers to entity database
+  - [ ] Create flight timeline visualization data
+- [ ] Integrate Black Book
+  - [ ] Download black book from DocumentCloud (redacted version)
+    - URL: https://www.documentcloud.org/documents/1508273-jeffrey-epsteins-little-black-book-redacted/
+    - 92 pages (redacted)
+  - [ ] Import complete CSV from epsteinsblackbook.com
+    - 95 pages complete, 1,500+ entries with phone/addresses
+  - [ ] Parse contact information (names, phone, addresses)
+  - [ ] Build BlackBookParser for structured data
+  - [ ] Deduplicate and merge with existing entities
+  - [ ] Add contact relationship edges to graph
+- [ ] Integrate 50th Birthday Book (2003)
+  - [ ] Download birthday book from DocumentCloud
+    - URL: https://www.documentcloud.org/documents/26086390-jeffey-epstein-50th-birthday-book/
+    - 238 pages of messages, drawings, and photos
+  - [ ] Parse JSON with messages, drawings, photos
+  - [ ] Extract sender names and relationship context
+  - [ ] Handle handwriting/scan quality issues
+  - [ ] Build BirthdayBookParser for structured data
+  - [ ] Add social relationship edges to graph
+- [ ] Cross-reference entities across all sources
+  - [ ] Build entity resolution for name variations
+  - [ ] Link flight passengers to black book entries
+  - [ ] Link birthday book senders to other sources
+  - [ ] Calculate entity centrality across all data
+- [ ] Document source attribution
+  - [ ] Track which source(s) each entity appears in
+  - [ ] Add confidence scores per source
+  - [ ] Create data lineage documentation
+
 ### Performance Optimization
 - [ ] Profile query performance at scale
 - [ ] Optimize slow queries
