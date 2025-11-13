@@ -8,6 +8,7 @@ authors = [
 ]
 requires-python = ">=3.11"
 dependencies = [
+    "mcp>=1.0.0",
     "networkx>=3.0",
     "pandas>=2.0",
     "sh>=2.2.2",
@@ -24,6 +25,7 @@ dev = [
 
 [project.scripts]
 unsealed-networks = "unsealed_networks.cli:main"
+unsealed-networks-mcp = "unsealed_networks.mcp_main:main"
 
 [build-system]
 requires = ["hatchling"]

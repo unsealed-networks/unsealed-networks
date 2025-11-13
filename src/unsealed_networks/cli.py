@@ -9,6 +9,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
+from .database.loader import load_documents
 from .survey.scanner import DocumentScanner
 
 app = typer.Typer(help="Unsealed Networks - Document analysis toolkit")
@@ -155,6 +156,30 @@ def stats(
         console.print("\n[bold]All entity mentions:[/bold]")
         for entity, count in data["entity_mentions"].items():
             console.print(f"  {entity:30s}: {count:5d}")
+
+
+@app.command()
+def load_db(
+    classifications: Path = typer.Argument(
+        ..., help="Classification results JSON file", exists=True
+    ),
+    text_dir: Path = typer.Argument(
+        ..., help="Root directory containing TEXT/ subdirs", exists=True, file_okay=False
+    ),
+    db_path: Path = typer.Option("data/unsealed.db", "--db", "-d", help="Output database path"),
+):
+    """Load documents from classification results into SQLite database."""
+    # Create data directory if needed
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+
+    load_documents(
+        db_path=db_path,
+        classifications_json=classifications,
+        text_dir=text_dir,
+    )
+
+    console.print(f"\n[bold green]✓ Database created:[/bold green] {db_path}")
+    console.print(f"  Size: {db_path.stat().st_size / (1024 * 1024):.1f} MB")
 
 
 def main():
