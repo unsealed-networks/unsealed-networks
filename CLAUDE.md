@@ -37,7 +37,14 @@ When you need to create temporary files during development or analysis (e.g., ex
 
 ## Code Style
 
-### PEP 8 Compliance
+### File Operations
+
+- Always specify `encoding="utf-8"` when opening text files
+- Example: `open(path, "w", encoding="utf-8")`
+
+## Python Code Conventions
+
+Follow these principles for writing clean, maintainable Python code:
 
 This project follows PEP 8 strictly. Key points:
 
@@ -45,10 +52,72 @@ This project follows PEP 8 strictly. Key points:
 - Ruff enforces PEP 8 automatically via pre-commit hooks
 - Run `uv run ruff check src/ tests/` to verify compliance
 
-### File Operations
+**Function Complexity:**
+- **Single Responsibility Test:** If you need multiple "and"/"or" words to describe what a function does, it's doing too many things and should be broken down
+- **Screen Size Rule:** Functions should generally be viewable in one screen (~40-60 lines)
+- **Nested Functions Are Good:** When dealing with lots of context variables, nested functions can access outer scope without needing to pass everything as parameters
+- **Break Down Complex Orchestrators:** Functions that orchestrate multiple steps (like parsers, CLI commands, or MCP tools) should delegate to smaller, single-purpose functions
+- **Nested Function Naming:** Nested functions should start with an underscore (`_`) to indicate they are internal/private to the parent function
 
-- Always specify `encoding="utf-8"` when opening text files
-- Example: `open(path, "w", encoding="utf-8")`
+**Example of good decomposition:**
+```python
+def parse_document(filepath: Path) -> EmailMetadata:
+    """Parse email document and extract structured metadata"""
+
+    def _join_header_continuations(lines: list[str]) -> list[str]:
+        """Join multi-line header continuations into single lines"""
+        # Single clear purpose, ~20 lines
+
+    def _parse_email_address(addr_str: str) -> EmailAddress:
+        """Parse a single email address with optional name"""
+        # Single clear purpose, ~15 lines
+
+    # Main orchestration logic - simple and clear
+    content = filepath.read_text(encoding="utf-8-sig")
+    lines = content.split("\n")
+    joined_lines = _join_header_continuations(lines)
+    metadata = _extract_metadata(joined_lines)
+    return metadata
+```
+
+**Anti-pattern to avoid:**
+```python
+def parse_document(filepath: Path):
+    """Parse document AND extract metadata AND classify document type
+    AND detect threading AND parse body AND extract quotes
+    AND validate data AND handle errors AND log everything"""
+    # 200 lines of mixed concerns - too complex!
+```
+
+## Secrets and Environment Variables
+
+**Never commit sensitive values to git.** This includes:
+- API keys for external services (e.g., Ollama endpoints, cloud services)
+- Database connection strings with credentials
+- Authentication tokens
+- Any other secrets or sensitive configuration
+
+**Use .env files for local development:**
+1. Store sensitive values in `.env` (gitignored)
+2. Create `.env.sample` with placeholder values as documentation
+3. Any time a new variable is added to `.env`, add a corresponding placeholder to `.env.sample`
+
+**Example:**
+```bash
+# .env (gitignored - actual values for your local environment)
+DATABASE_PATH=/home/user/data/unsealed_networks.db
+OLLAMA_API_URL=http://localhost:11434
+OLLAMA_MODEL=deepseek-r1:8b
+LOG_LEVEL=INFO
+
+# .env.sample (committed - placeholders)
+DATABASE_PATH=/path/to/database.db
+OLLAMA_API_URL=http://localhost:11434
+OLLAMA_MODEL=your-preferred-model
+LOG_LEVEL=INFO
+```
+
+**Note:** For this project, most configuration should be explicit arguments to functions/CLIs rather than environment variables. Use `.env` only when truly needed for sensitive values or deployment-specific configuration.
 
 ## Entity Extraction Philosophy
 
