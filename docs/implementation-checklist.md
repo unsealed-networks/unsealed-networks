@@ -415,6 +415,122 @@
 
 ---
 
+## Phase 9: Future Integrations from Parallel Projects
+
+### Inspired by epstein-network-graph & epstein-document-search
+
+**References:**
+- epstein-network-graph: https://github.com/dleerdefi/epstein-network-graph
+- epstein-document-search: https://github.com/paulgp/epstein-document-search
+
+### High-Priority Integrations
+
+#### Meilisearch Search Engine
+- [ ] Replace SQLite FTS5 with Meilisearch for faster, typo-tolerant search
+  - [ ] Set up Meilisearch instance (Docker or cloud)
+  - [ ] Port `prepare_for_meilisearch.py` logic for document indexing
+  - [ ] Configure searchable/filterable attributes (entities, dates, doc types)
+  - [ ] Implement batch indexing with smart chunking (18MB limit handling)
+  - [ ] Add typo tolerance, faceted filtering, highlighted results
+  - [ ] Update MCP tools to use Meilisearch instead of SQLite FTS5
+  - [ ] Performance: 10-100x faster than SQLite at scale
+  - [ ] **Benefit**: Blazing-fast search with typo correction, better UX
+
+#### Static Search Frontend
+- [ ] Create static HTML search interface (no backend required)
+  - [ ] Port `website/index.html` from epstein-document-search
+  - [ ] Adapt for unsealed-networks document types
+  - [ ] Add entity filtering, date range filtering, document type filters
+  - [ ] Implement pagination and "Load More" functionality
+  - [ ] Deploy to GitHub Pages at unsealed-networks.github.io
+  - [ ] **Benefit**: Public search interface accessible to non-technical users
+
+#### Entity Importance Weighting System
+- [ ] Implement 3-tier pyramid scoring system
+  - [ ] Define document tiers (email < legal < flight logs/key sources)
+  - [ ] Calculate presence score (which document types mention entity)
+  - [ ] Calculate frequency score (how often entity appears)
+  - [ ] Calculate richness score (data density: contacts, addresses, roles)
+  - [ ] Build composite importance algorithm (normalized 0-100)
+  - [ ] Add importance scores to entity database
+  - [ ] Use scores for ranking in search results and graph visualization
+  - [ ] **Benefit**: Objective, quantitative entity ranking without bias
+
+#### Multimodal Document Extraction
+- [ ] Integrate Claude Vision API for handwritten/poor-quality documents
+  - [ ] Port image preprocessing scripts (`crop_*.py`)
+  - [ ] Implement auto-cropping for border removal (50-70% size reduction)
+  - [ ] Add quality assessment for OCR results
+  - [ ] Fall back to Claude Vision when OCR quality < 70%
+  - [ ] Extract handwritten annotations, signatures, marginalia
+  - [ ] Port extraction methodology from `EXAMPLE-CLAUDE.md`
+  - [ ] **Benefit**: Handle handwritten docs, redactions, poor scans (85-90% accuracy)
+
+#### Amazon MTurk for Human Validation
+- [ ] Set up Amazon Mechanical Turk workflow for handwritten notes
+  - [ ] Create HITs (Human Intelligence Tasks) for ambiguous extractions
+  - [ ] Design validation UI showing original image + AI extraction
+  - [ ] Implement quality control (multiple workers, consensus)
+  - [ ] Collect corrections and feed back into entity database
+  - [ ] Track confidence scores (AI-only vs human-validated)
+  - [ ] Build two-pass workflow: AI extraction → MTurk validation
+  - [ ] **Benefit**: Human-in-the-loop for AI failures, crowdsourced accuracy
+
+### Medium-Priority Integrations
+
+#### Master Entity List with Deduplication
+- [ ] Create canonical entity name mapping
+  - [ ] Import 85+ verified names from epstein-network-graph
+  - [ ] Build name variation dictionary (Jeffrey/Jeff, etc.)
+  - [ ] Implement fuzzy matching (Levenshtein distance < 2)
+  - [ ] Add phonetic matching (Soundex/Metaphone)
+  - [ ] Cross-reference phone numbers as unique identifiers
+  - [ ] Maintain aliases and link to canonical forms
+  - [ ] **Benefit**: Resolve duplicate entities, standardize names
+
+#### Court Document Parser Improvements
+- [ ] Port proven regex patterns from epstein-document-search
+  - [ ] Improve case number extraction (current: 63% → target: 95%)
+  - [ ] Add filing date pattern: `Filed ([\d/]+)`
+  - [ ] Add page pattern: `Page (\d+) of (\d+)`
+  - [ ] Add court header pattern for metadata extraction
+  - [ ] **Benefit**: Higher accuracy on legal document parsing
+
+#### Two-Pass Validation Framework
+- [ ] Implement V1 (automated) → V2 (manual review) workflow
+  - [ ] Add version field to all extractions (v1/v2)
+  - [ ] Build validation UI for manual review
+  - [ ] Track reviewer metadata (who, when, confidence)
+  - [ ] Add confidence scoring to all extracted fields
+  - [ ] Create community contribution guidelines
+  - [ ] Implement error reporting with structured tags
+  - [ ] **Benefit**: Data quality assurance, audit trail, community validation
+
+#### Image Preprocessing Pipeline
+- [ ] Add automated image optimization to ETL
+  - [ ] Border cropping for noise removal
+  - [ ] Resize/optimize for OCR (2048x2650 standard)
+  - [ ] Batch processing for large document sets
+  - [ ] **Benefit**: Improved OCR accuracy, reduced processing time
+
+### Long-Term Integrations
+
+#### GraphRAG Query Interface
+- [ ] Natural language graph queries
+  - [ ] Combine knowledge graph with LLM reasoning
+  - [ ] Enable questions like "Who flew with X between 2000-2005?"
+  - [ ] Hybrid retrieval: graph queries + document search
+  - [ ] FastAPI backend for query orchestration
+
+#### Advanced Visualization
+- [ ] Port PyVis/NetworkX visualization approaches
+  - [ ] Interactive network graphs with node sizing by importance
+  - [ ] Timeline visualizations for temporal analysis
+  - [ ] Geographic distribution maps
+  - [ ] Relationship heat maps
+
+---
+
 ## Deployment & Distribution
 
 ### Docker
