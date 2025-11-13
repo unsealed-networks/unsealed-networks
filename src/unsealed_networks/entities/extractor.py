@@ -7,6 +7,8 @@ from typing import Any
 
 import requests
 
+from ..config import DEFAULT_OLLAMA_CONFIG, OllamaConfig
+
 
 @dataclass
 class Entity:
@@ -37,9 +39,6 @@ class HybridEntityExtractor:
     LLM_VALIDATION_ENABLED = True  # Toggle LLM validation
     CONTEXT_WINDOW = 50  # Characters of context around entity
     MAX_TEXT_LENGTH = 3000  # Max chars to send to LLM
-    OLLAMA_HOST = "http://localhost:11434"
-    OLLAMA_MODEL = "qwen2.5:7b"
-    OLLAMA_TIMEOUT = 30
 
     # Regex patterns for entity extraction
     # Person names: Title + First + Last, or First + Last
@@ -83,13 +82,16 @@ class HybridEntityExtractor:
 
     def __init__(
         self,
-        ollama_host: str = None,
-        ollama_model: str = None,
+        ollama_config: OllamaConfig = None,
         enable_llm: bool = None,
     ):
-        """Initialize extractor with optional configuration."""
-        self.ollama_host = ollama_host or self.OLLAMA_HOST
-        self.ollama_model = ollama_model or self.OLLAMA_MODEL
+        """Initialize extractor with optional configuration.
+
+        Args:
+            ollama_config: Ollama configuration (defaults to DEFAULT_OLLAMA_CONFIG)
+            enable_llm: Whether to use LLM validation
+        """
+        self.ollama_config = ollama_config or DEFAULT_OLLAMA_CONFIG
         self.llm_enabled = enable_llm if enable_llm is not None else self.LLM_VALIDATION_ENABLED
 
     def extract(self, text: str, validate_with_llm: bool = None) -> dict[str, list[Entity]]:
@@ -381,15 +383,15 @@ Respond with JSON:
 
     def _call_ollama_validation(self, prompt: str) -> dict[str, Any]:
         """Call Ollama API for entity validation."""
-        url = f"{self.ollama_host}/api/generate"
+        url = f"{self.ollama_config.host}/api/generate"
         payload = {
-            "model": self.ollama_model,
+            "model": self.ollama_config.model,
             "prompt": prompt,
             "stream": False,
             "format": "json",
         }
 
-        response = requests.post(url, json=payload, timeout=self.OLLAMA_TIMEOUT)
+        response = requests.post(url, json=payload, timeout=self.ollama_config.timeout)
         response.raise_for_status()
 
         result = response.json()

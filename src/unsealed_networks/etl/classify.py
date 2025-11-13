@@ -7,6 +7,7 @@ from pathlib import Path
 
 import requests
 
+from unsealed_networks.config import CLASSIFIER_OLLAMA_CONFIG, OllamaConfig
 from unsealed_networks.parsers.classifier import DocumentClassifier
 
 logger = logging.getLogger(__name__)
@@ -30,7 +31,6 @@ class HybridDocumentClassifier:
     # Configuration constants
     REGEX_CONFIDENCE_THRESHOLD = 0.85  # If regex confidence < this, use LLM
     LLM_CONFIDENCE_THRESHOLD = 0.70  # Minimum confidence to accept LLM result
-    OLLAMA_TIMEOUT = 30  # Seconds
     MAX_CONTENT_LENGTH = 1000  # Characters to send to LLM
 
     # Improved classification prompt with hierarchy
@@ -73,18 +73,15 @@ Document excerpt:
 
     def __init__(
         self,
-        ollama_url: str = "http://localhost:11434/api/generate",
-        ollama_model: str = "qwen2.5:7b",
+        ollama_config: OllamaConfig = None,
     ):
         """Initialize hybrid classifier.
 
         Args:
-            ollama_url: Ollama API endpoint
-            ollama_model: Model to use for LLM classification
+            ollama_config: Ollama configuration (defaults to CLASSIFIER_OLLAMA_CONFIG)
         """
         self.regex_classifier = DocumentClassifier()
-        self.ollama_url = ollama_url
-        self.ollama_model = ollama_model
+        self.ollama_config = ollama_config or CLASSIFIER_OLLAMA_CONFIG
 
     def classify(self, filepath: Path) -> ClassificationResult:
         """Classify a document using hybrid approach.
@@ -173,13 +170,14 @@ Document excerpt:
 
         # Call Ollama API
         payload = {
-            "model": self.ollama_model,
+            "model": self.ollama_config.model,
             "prompt": prompt,
             "stream": False,
             "format": "json",
         }
 
-        response = requests.post(self.ollama_url, json=payload, timeout=self.OLLAMA_TIMEOUT)
+        ollama_url = f"{self.ollama_config.host}/api/generate"
+        response = requests.post(ollama_url, json=payload, timeout=self.ollama_config.timeout)
         response.raise_for_status()
 
         result_data = response.json()
