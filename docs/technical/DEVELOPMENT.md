@@ -81,6 +81,53 @@ uv sync
 - **Type hints:** Use when helpful, not required everywhere
 - **Docstrings:** Required for public functions/classes
 
+## CLI Scripts and Shell Integration
+
+We use **typer** for argument parsing and **sh** for shell command integration.
+
+### Why This Approach
+
+- **Coherent utilities:** Python scripts can call shell commands cleanly
+- **Type-safe:** Typer provides type checking for CLI arguments
+- **Self-documenting:** Typer auto-generates help text
+- **Composable:** sh makes shell commands feel like Python functions
+
+### Example CLI Script
+
+```python
+import typer
+from pathlib import Path
+from sh import tar, gzip
+
+app = typer.Typer()
+
+@app.command()
+def extract_archive(
+    archive: Path = typer.Argument(..., help="Path to archive file"),
+    output_dir: Path = typer.Option("./output", help="Output directory"),
+):
+    """Extract a .tgz archive to the specified directory."""
+    typer.echo(f"Extracting {archive} to {output_dir}...")
+
+    # Using sh library - shell commands as Python functions
+    tar("xzf", str(archive), "-C", str(output_dir))
+
+    typer.echo("Done!")
+
+if __name__ == "__main__":
+    app()
+```
+
+### Running CLI Scripts
+
+```bash
+# Run directly with uv
+uv run python scripts/your_script.py --help
+
+# Or make it an entry point in pyproject.toml
+uv run your-command --help
+```
+
 ## Testing
 
 - **Unit tests:** Test individual functions/classes in isolation
