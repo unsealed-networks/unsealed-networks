@@ -7,6 +7,8 @@ from pathlib import Path
 from rich.console import Console
 from rich.progress import track
 
+from .schema import init_database, rebuild_fts_index
+
 console = Console()
 
 
@@ -27,8 +29,6 @@ def load_documents(
     Returns:
         Dict with loading statistics
     """
-    from .schema import init_database
-
     # Initialize database
     conn = init_database(db_path)
 
@@ -95,8 +95,6 @@ def load_documents(
 
     # Rebuild FTS index
     console.print("[bold]Rebuilding full-text search index...[/bold]")
-    from .schema import rebuild_fts_index
-
     rebuild_fts_index(conn)
 
     conn.close()
