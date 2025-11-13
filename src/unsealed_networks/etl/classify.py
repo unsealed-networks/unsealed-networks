@@ -206,7 +206,13 @@ def classify_documents(
     Returns:
         List of classification results
     """
-    classifier = HybridDocumentClassifier(ollama_url=ollama_url, ollama_model=ollama_model)
+    # Create OllamaConfig from URL and model parameters
+    ollama_config = OllamaConfig(
+        host=ollama_url.replace("/api/generate", ""),
+        model=ollama_model,
+        timeout=120,
+    )
+    classifier = HybridDocumentClassifier(ollama_config=ollama_config)
 
     # Find all text files
     text_files = sorted(source_dir.rglob("*.txt"))

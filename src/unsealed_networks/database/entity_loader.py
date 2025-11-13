@@ -152,7 +152,7 @@ def extract_and_store_entities(
         if email_metadata:
             _store_email_metadata(conn, doc_id, email_metadata)
 
-        conn.commit()
+        # Note: No commit here - batch_extract_entities handles commits in batches
 
     except Exception as e:
         console.print(f"[red]Error extracting entities from {doc_id}: {e}[/red]")

@@ -44,21 +44,38 @@ def find_entity_mentions(
 
     entities = conn.execute(query, params).fetchall()
 
-    results = {"entities": []}
+    if not entities:
+        conn.close()
+        return {"entities": []}
 
+    # Fetch all document-entity relationships for matching entities in single query
+    # to avoid N+1 query problem
+    entity_ids = [entity["entity_id"] for entity in entities]
+    placeholders = ",".join("?" * len(entity_ids))
+
+    all_docs = conn.execute(
+        f"""
+        SELECT de.entity_id, d.doc_id, d.doc_type, de.confidence, de.context
+        FROM document_entities de
+        JOIN documents d ON de.doc_id = d.doc_id
+        WHERE de.entity_id IN ({placeholders})
+        ORDER BY de.entity_id, de.confidence DESC
+        """,
+        entity_ids,
+    ).fetchall()
+
+    # Group documents by entity_id
+    docs_by_entity = {}
+    for doc in all_docs:
+        entity_id = doc["entity_id"]
+        if entity_id not in docs_by_entity:
+            docs_by_entity[entity_id] = []
+        docs_by_entity[entity_id].append(doc)
+
+    # Build results with per-entity limit applied in Python
+    results = {"entities": []}
     for entity in entities:
-        # Find documents for this entity
-        docs = conn.execute(
-            """
-            SELECT d.doc_id, d.doc_type, de.confidence, de.context
-            FROM document_entities de
-            JOIN documents d ON de.doc_id = d.doc_id
-            WHERE de.entity_id = ?
-            ORDER BY de.confidence DESC
-            LIMIT ?
-            """,
-            (entity["entity_id"], limit),
-        ).fetchall()
+        entity_docs = docs_by_entity.get(entity["entity_id"], [])[:limit]
 
         results["entities"].append(
             {
@@ -74,7 +91,7 @@ def find_entity_mentions(
                         "confidence": doc["confidence"],
                         "context": doc["context"],
                     }
-                    for doc in docs
+                    for doc in entity_docs
                 ],
             }
         )

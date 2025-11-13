@@ -83,6 +83,12 @@ class HybridEntityExtractor:
         r"\b((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\.?\s+\d{1,2},?\s+\d{4})\b",  # noqa: E501
     ]
 
+    # Pre-compiled patterns for performance (avoid recompiling in loops)
+    _COMPILED_PERSON_PATTERNS = [re.compile(p) for p in PERSON_PATTERNS]
+    _COMPILED_ORG_PATTERNS = [re.compile(p) for p in ORG_PATTERNS]
+    _COMPILED_LOCATION_PATTERNS = [re.compile(p) for p in LOCATION_PATTERNS]
+    _COMPILED_DATE_PATTERNS = [re.compile(p, re.IGNORECASE) for p in DATE_PATTERNS]
+
     def __init__(
         self,
         ollama_config: OllamaConfig = None,
@@ -128,8 +134,8 @@ class HybridEntityExtractor:
         people = []
         seen = set()  # Deduplicate
 
-        for pattern in self.PERSON_PATTERNS:
-            for match in re.finditer(pattern, text):
+        for pattern in self._COMPILED_PERSON_PATTERNS:
+            for match in pattern.finditer(text):
                 name = match.group(1) if match.lastindex else match.group(0)
                 name = name.strip()
 
@@ -156,8 +162,8 @@ class HybridEntityExtractor:
         orgs = []
         seen = set()
 
-        for pattern in self.ORG_PATTERNS:
-            for match in re.finditer(pattern, text):
+        for pattern in self._COMPILED_ORG_PATTERNS:
+            for match in pattern.finditer(text):
                 org = match.group(1) if match.lastindex else match.group(0)
                 org = org.strip()
 
@@ -182,8 +188,8 @@ class HybridEntityExtractor:
         locations = []
         seen = set()
 
-        for pattern in self.LOCATION_PATTERNS:
-            for match in re.finditer(pattern, text):
+        for pattern in self._COMPILED_LOCATION_PATTERNS:
+            for match in pattern.finditer(text):
                 loc = match.group(0).strip()
 
                 if loc not in seen:
@@ -207,8 +213,8 @@ class HybridEntityExtractor:
         dates = []
         seen = set()
 
-        for pattern in self.DATE_PATTERNS:
-            for match in re.finditer(pattern, text, re.IGNORECASE):
+        for pattern in self._COMPILED_DATE_PATTERNS:
+            for match in pattern.finditer(text):
                 date = match.group(0).strip()
 
                 if date not in seen:
