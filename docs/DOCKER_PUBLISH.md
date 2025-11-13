@@ -35,11 +35,11 @@ docker login
 docker tag unsealed-networks devonsjones/unsealed-networks:latest
 
 # Optional: Also tag with version
-docker tag unsealed-networks devonsjones/unsealed-networks:v1.0.0
+docker tag unsealed-networks devonsjones/unsealed-networks:0.0.1
 
 # Push to Docker Hub
 docker push devonsjones/unsealed-networks:latest
-docker push devonsjones/unsealed-networks:v1.0.0  # if versioned
+docker push devonsjones/unsealed-networks:0.0.1  # if versioned
 ```
 
 ## Verify
@@ -102,13 +102,14 @@ No source code, no database setup, no Python installation required!
 
 When updating the database or code:
 
-1. Rebuild database: `uv run unsealed-networks load-db ...`
-2. Rebuild image: `docker build -t unsealed-networks .`
-3. Test locally
-4. Tag with new version: `docker tag unsealed-networks devonsjones/unsealed-networks:v1.1.0`
-5. Push: `docker push devonsjones/unsealed-networks:v1.1.0`
-6. Update latest tag: `docker tag unsealed-networks devonsjones/unsealed-networks:latest`
-7. Push latest: `docker push devonsjones/unsealed-networks:latest`
+1. Update version in `pyproject.toml`
+2. Rebuild database: `uv run unsealed-networks load-db ...`
+3. Rebuild image: `docker build -t unsealed-networks .`
+4. Test locally
+5. Tag with new version: `docker tag unsealed-networks devonsjones/unsealed-networks:0.0.2`
+6. Push: `docker push devonsjones/unsealed-networks:0.0.2`
+7. Update latest tag: `docker tag unsealed-networks devonsjones/unsealed-networks:latest`
+8. Push latest: `docker push devonsjones/unsealed-networks:latest`
 
 ## Security Notes
 
