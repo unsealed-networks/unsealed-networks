@@ -373,11 +373,13 @@
 
 ## Phase 5: Relationship Graph Construction
 
+**Architecture Decision**: NetworkX + SQLite for portability (container/Lambda deployments)
+
 ### Graph Design
-- [ ] Choose graph approach:
-  - [ ] Option A: NetworkX (in-memory, Python)
-  - [ ] Option B: Neo4j (dedicated graph database)
-  - [ ] Option C: Hybrid (NetworkX + SQLite storage)
+- [x] Choose graph approach: **NetworkX + SQLite hybrid**
+  - **Why**: Portability - ship graph inside container or Lambda
+  - **How**: NetworkX for graph algorithms, SQLite for persistent storage
+  - **NOT using**: Neo4j (external service, deployment complexity)
 - [ ] Define node types:
   - [ ] People
   - [ ] Organizations
@@ -391,20 +393,24 @@
   - [ ] REPRESENTED_BY (party → attorney)
   - [ ] THREAD_PARTICIPANT (person → email_thread)
 
-### Graph Construction
-- [ ] Build graph from database
-  - [ ] Load email relationships
-  - [ ] Load legal case relationships
-  - [ ] Load entity mentions
-  - [ ] Load cross-document relationships
+### Graph Construction (NetworkX + SQLite)
+- [ ] Build NetworkX graph from SQLite database
+  - [ ] Load email relationships (sender → recipient edges)
+  - [ ] Load legal case relationships (party ↔ case edges)
+  - [ ] Load entity mentions (entity → document edges)
+  - [ ] Load cross-document relationships (co-occurrence edges)
 - [ ] Add confidence scoring to edges
-- [ ] Implement graph queries:
-  - [ ] Find all connections between two people
-  - [ ] Find shortest path between entities
-  - [ ] Identify central figures (degree centrality)
-  - [ ] Find communities/clusters
-  - [ ] Temporal analysis (relationships over time)
-- [ ] Export graph formats (GraphML, JSON, etc.)
+- [ ] Persist graph to SQLite
+  - [ ] Create graph_nodes table (node_id, type, properties JSON)
+  - [ ] Create graph_edges table (source, target, type, weight, properties JSON)
+  - [ ] Build efficient indexes for graph queries
+- [ ] Implement NetworkX graph queries:
+  - [ ] Find all connections between two people (shortest_path)
+  - [ ] Find shortest path between entities (dijkstra)
+  - [ ] Identify central figures (degree_centrality, betweenness_centrality)
+  - [ ] Find communities/clusters (community detection algorithms)
+  - [ ] Temporal analysis (relationships over time with edge timestamps)
+- [ ] Export graph formats (GraphML, JSON, pickle) for external tools
 
 ### Visualization
 - [ ] Choose visualization tool:
