@@ -25,9 +25,18 @@ def find_entity_mentions(
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
 
-    # Find matching entities
-    query = "SELECT * FROM entities WHERE text LIKE ? OR normalized_text LIKE ?"
-    params = [f"%{entity_name}%", f"%{entity_name.lower()}%"]
+    # Find matching entities using FTS5 for fast search
+    # FTS5 prefix search: "query"* matches any word starting with "query"
+    search_query = f'"{entity_name}"*'
+
+    query = """
+        SELECT * FROM entities
+        WHERE entity_id IN (
+            SELECT rowid FROM entities_fts
+            WHERE entities_fts MATCH ?
+        )
+    """
+    params = [search_query]
 
     if entity_type:
         query += " AND type = ?"
@@ -92,6 +101,10 @@ def find_email_threads(
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
 
+    # Use FTS5 for fast thread author search
+    # FTS5 prefix search: "query"* matches any word starting with "query"
+    search_query = f'"{participant}"*'
+
     threads = conn.execute(
         """
         SELECT tm.doc_id, tm.author, tm.date, tm.date_str, tm.content_preview,
@@ -99,11 +112,14 @@ def find_email_threads(
         FROM thread_messages tm
         JOIN documents d ON tm.doc_id = d.doc_id
         LEFT JOIN email_metadata em ON tm.doc_id = em.doc_id
-        WHERE tm.author LIKE ?
+        WHERE tm.rowid IN (
+            SELECT rowid FROM thread_messages_fts
+            WHERE thread_messages_fts MATCH ?
+        )
         ORDER BY tm.date DESC
         LIMIT ?
         """,
-        (f"%{participant}%", limit),
+        (search_query, limit),
     ).fetchall()
 
     conn.close()

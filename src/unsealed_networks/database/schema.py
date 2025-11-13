@@ -134,11 +134,80 @@ def init_database(db_path: Path) -> sqlite3.Connection:
         ON thread_messages(author)
     """)
 
+    # Create FTS5 virtual table for entity search
+    conn.execute("""
+        CREATE VIRTUAL TABLE IF NOT EXISTS entities_fts USING fts5(
+            text,
+            normalized_text,
+            content='entities',
+            content_rowid='entity_id'
+        )
+    """)
+
+    # Triggers to keep entities_fts in sync with entities table
+    conn.execute("""
+        CREATE TRIGGER IF NOT EXISTS entities_ai AFTER INSERT ON entities BEGIN
+            INSERT INTO entities_fts(rowid, text, normalized_text)
+            VALUES (new.entity_id, new.text, new.normalized_text);
+        END
+    """)
+
+    conn.execute("""
+        CREATE TRIGGER IF NOT EXISTS entities_ad AFTER DELETE ON entities BEGIN
+            INSERT INTO entities_fts(entities_fts, rowid, text, normalized_text)
+            VALUES('delete', old.entity_id, old.text, old.normalized_text);
+        END
+    """)
+
+    conn.execute("""
+        CREATE TRIGGER IF NOT EXISTS entities_au AFTER UPDATE ON entities BEGIN
+            INSERT INTO entities_fts(entities_fts, rowid, text, normalized_text)
+            VALUES('delete', old.entity_id, old.text, old.normalized_text);
+            INSERT INTO entities_fts(rowid, text, normalized_text)
+            VALUES (new.entity_id, new.text, new.normalized_text);
+        END
+    """)
+
+    # Create FTS5 virtual table for thread author search
+    conn.execute("""
+        CREATE VIRTUAL TABLE IF NOT EXISTS thread_messages_fts USING fts5(
+            author,
+            content='thread_messages',
+            content_rowid='rowid'
+        )
+    """)
+
+    # Triggers to keep thread_messages_fts in sync
+    conn.execute("""
+        CREATE TRIGGER IF NOT EXISTS thread_messages_ai AFTER INSERT ON thread_messages BEGIN
+            INSERT INTO thread_messages_fts(rowid, author)
+            VALUES (new.rowid, new.author);
+        END
+    """)
+
+    conn.execute("""
+        CREATE TRIGGER IF NOT EXISTS thread_messages_ad AFTER DELETE ON thread_messages BEGIN
+            INSERT INTO thread_messages_fts(thread_messages_fts, rowid, author)
+            VALUES('delete', old.rowid, old.author);
+        END
+    """)
+
+    conn.execute("""
+        CREATE TRIGGER IF NOT EXISTS thread_messages_au AFTER UPDATE ON thread_messages BEGIN
+            INSERT INTO thread_messages_fts(thread_messages_fts, rowid, author)
+            VALUES('delete', old.rowid, old.author);
+            INSERT INTO thread_messages_fts(rowid, author)
+            VALUES (new.rowid, new.author);
+        END
+    """)
+
     conn.commit()
     return conn
 
 
 def rebuild_fts_index(conn: sqlite3.Connection):
-    """Rebuild the FTS5 index from documents table."""
+    """Rebuild all FTS5 indexes from their source tables."""
     conn.execute("INSERT INTO documents_fts(documents_fts) VALUES('rebuild')")
+    conn.execute("INSERT INTO entities_fts(entities_fts) VALUES('rebuild')")
+    conn.execute("INSERT INTO thread_messages_fts(thread_messages_fts) VALUES('rebuild')")
     conn.commit()
