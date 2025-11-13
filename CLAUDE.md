@@ -6,6 +6,75 @@ This document provides guidance for AI assistants (like Claude Code) working on 
 
 This is the unsealed-networks project for analyzing public Epstein documents. The goal is to build open-source infrastructure that makes accountability queries trivial.
 
+## Ollama Access
+
+This project uses a local Ollama instance for LLM capabilities (entity extraction, NER, embeddings, etc.). Ollama is running in a Docker container.
+
+### How to Access Ollama
+
+**Via HTTP API:**
+```bash
+# List available models
+curl http://localhost:11434/api/tags
+
+# Generate completion
+curl http://localhost:11434/api/generate -d '{
+  "model": "qwen2.5:7b",
+  "prompt": "Extract all person names from: John met with Jane",
+  "stream": false
+}'
+
+# Generate embeddings
+curl http://localhost:11434/api/embeddings -d '{
+  "model": "nomic-embed-text",
+  "prompt": "Document text to embed"
+}'
+```
+
+**Via Docker Exec:**
+```bash
+# Pull a new model
+docker exec -it ollama ollama pull qwen2.5:7b
+
+# List models
+docker exec -it ollama ollama list
+
+# Run a model interactively
+docker exec -it ollama ollama run qwen2.5:7b
+```
+
+### Available Models
+
+The following models are installed for this project:
+
+- **`qwen2.5:7b`** - Primary model for entity extraction, relationship detection, structured output
+- **`llama3.1:8b`** - Backup model for entity extraction, good instruction following with native structured output
+- **`nomic-embed-text`** - Lightweight embedding model for semantic search and document clustering
+- **`deepseek-r1:8b`** - Reasoning model for complex inference tasks
+
+### Using Ollama in Code
+
+Example Python usage with the `ollama` library:
+
+```python
+import ollama
+
+# Generate structured output
+response = ollama.generate(
+    model='qwen2.5:7b',
+    prompt='Extract person names as JSON list: John met Jane and Bob',
+    format='json'
+)
+
+# Generate embeddings
+embedding = ollama.embeddings(
+    model='nomic-embed-text',
+    prompt='Document text'
+)
+```
+
+See `.env.sample` for Ollama configuration variables.
+
 ## Working with Files
 
 ### Temporary Files and Scratch Work
