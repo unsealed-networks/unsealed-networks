@@ -210,6 +210,131 @@
 
 ---
 
+## Phase 3.5: epstein-docs.github.io Data Integration
+
+**Reference**: https://github.com/epstein-docs/epstein-docs.github.io
+
+**Context**: This project has already processed 29,439 pages (vs our 2,897 docs) using OpenAI Vision API with full OCR, entity extraction, deduplication, and AI document analyses. We should integrate their data as an external source rather than recreating it.
+
+### Benefits of Integration
+- **10x more document coverage**: 29,439 pages vs our 2,897
+- **High-quality entity deduplication**: AI-powered canonical name mappings (dedupe.json)
+- **Document analyses**: 8,186 AI-generated summaries with key topics, people, significance
+- **Cross-validation**: Compare our extractions against theirs for quality assurance
+- **Handwritten text**: Their Vision API handles handwriting better than traditional OCR
+
+### Import Entity Deduplication Mappings
+- [ ] Clone epstein-docs.github.io repository to parallel-projects
+- [ ] Load dedupe.json entity mappings
+  - [ ] Parse people mappings (e.g., "Epstein" → "Jeffrey Epstein")
+  - [ ] Parse organization mappings
+  - [ ] Parse location mappings
+- [ ] Build canonical entity resolution system
+  - [ ] Create entity_aliases table linking variations to canonical forms
+  - [ ] Apply their mappings to our extracted entities
+  - [ ] Use as seed data for our own deduplication
+- [ ] Cross-reference entity names
+  - [ ] Compare our entity extractions with their mappings
+  - [ ] Flag entities we extracted that aren't in their dedupe list
+  - [ ] Identify potential new aliases/variations
+
+### Import Document Analyses
+- [ ] Load analyses.json (8,186 document analyses)
+- [ ] Parse analysis structure:
+  - [ ] Document type classification
+  - [ ] Key topics extraction
+  - [ ] Key people with roles
+  - [ ] Significance assessment
+  - [ ] Executive summaries
+- [ ] Match analyses to our documents
+  - [ ] Build doc ID mapping (their doc numbers → our doc IDs)
+  - [ ] Link by document number patterns
+  - [ ] Handle documents we both have
+- [ ] Store analyses in database
+  - [ ] Create document_analyses table
+  - [ ] Add fields: summary, key_topics (JSON), key_people (JSON), significance
+  - [ ] Link to our documents table via doc_id
+- [ ] Use for search enhancement
+  - [ ] Index summaries in FTS5 for semantic search
+  - [ ] Enable filtering by key topics
+  - [ ] Surface key people in search results
+
+### Document Overlap Analysis
+- [ ] Identify documents in both datasets
+  - [ ] Extract document numbers from our 2,897 docs
+  - [ ] Extract document numbers from their 29,439 pages
+  - [ ] Build intersection set (docs we both processed)
+- [ ] Compare extraction quality
+  - [ ] Compare entity counts (our extraction vs theirs)
+  - [ ] Compare text extraction (OCR quality)
+  - [ ] Identify discrepancies (entities we found vs they found)
+  - [ ] Calculate accuracy metrics (precision/recall)
+- [ ] Build validation report
+  - [ ] Document-by-document comparison
+  - [ ] Flag significant discrepancies for manual review
+  - [ ] Identify parser improvement opportunities
+  - [ ] Generate quality metrics dashboard
+
+### Import Unique Documents
+- [ ] Identify documents only in epstein-docs corpus
+  - [ ] Calculate: 29,439 - (overlap count) = unique docs
+  - [ ] Estimated ~26,500 unique documents
+- [ ] Design import strategy
+  - [ ] Option A: Reference their processed JSON files directly
+  - [ ] Option B: Import their data into our database
+  - [ ] Option C: Hybrid (import metadata, reference full text)
+- [ ] Load their processed results
+  - [ ] Parse 29,439 JSON files from results/ directory
+  - [ ] Extract: full_text, entities, metadata, text_blocks
+  - [ ] Handle document grouping (pages → complete documents)
+- [ ] Import into our database
+  - [ ] Add source_system field ("epstein-docs" vs "unsealed-networks")
+  - [ ] Preserve their document IDs and page numbers
+  - [ ] Import full text into documents table
+  - [ ] Import entities into entity_mentions table
+  - [ ] Mark as external_source = TRUE for attribution
+- [ ] Update statistics
+  - [ ] Recalculate total document count (~32,000+)
+  - [ ] Update entity counts with deduplicated totals
+  - [ ] Measure coverage improvement
+
+### Cross-Validation & Quality Assurance
+- [ ] Build comparison framework
+  - [ ] For overlapping docs, compare entity lists side-by-side
+  - [ ] Identify entities they found that we missed (false negatives)
+  - [ ] Identify entities we found that they missed (potential improvements)
+- [ ] Learn from discrepancies
+  - [ ] Analyze why Vision API caught entities we missed
+  - [ ] Identify patterns in handwritten text we failed to OCR
+  - [ ] Improve our parsers based on gaps
+- [ ] Enhance our entity extraction
+  - [ ] Add missing entity patterns to our regex
+  - [ ] Fine-tune Ollama prompts based on their results
+  - [ ] Consider hybrid approach: our parsers + their Vision API for hard cases
+
+### Attribution & Documentation
+- [ ] Add data source attribution
+  - [ ] Credit epstein-docs.github.io in README
+  - [ ] Add "source" field to all imported entities/documents
+  - [ ] Maintain provenance for transparency
+- [ ] Document integration methodology
+  - [ ] Write DATA_SOURCES.md explaining integration
+  - [ ] Document mapping strategy (their IDs → our IDs)
+  - [ ] Explain deduplication approach
+- [ ] License compliance
+  - [ ] Verify MIT license compatibility
+  - [ ] Include attribution as required
+  - [ ] Document data lineage
+
+### Integration Metrics (Target)
+- **Total Documents**: ~32,000 (2,897 + ~29,000 unique)
+- **Total Entities**: TBD after deduplication
+- **Overlap**: ~2,500 documents (for validation)
+- **Analyses**: 8,186 AI summaries
+- **Coverage Improvement**: 10x increase
+
+---
+
 ## Phase 4: Database Schema Update & Relationship Storage
 
 ### Schema Design
