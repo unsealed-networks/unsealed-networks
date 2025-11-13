@@ -23,7 +23,7 @@ dev = [
 ]
 
 [project.scripts]
-unsealed-networks = "unsealed_networks:main"
+unsealed-networks = "unsealed_networks.cli:main"
 
 [build-system]
 requires = ["hatchling"]
@@ -47,6 +47,7 @@ ignore = []
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]  # Unused imports OK in __init__
 "tests/*" = ["B", "S"]    # More permissive in tests
+"cli.py" = ["B008"]       # typer.Argument/Option in defaults is the pattern
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
