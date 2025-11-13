@@ -42,11 +42,11 @@ def survey(
     report["scan_date"] = datetime.now().isoformat()
 
     # Save report
-    with open(output, "w") as f:
+    with open(output, "w", encoding="utf-8") as f:
         json.dump(report, f, indent=2)
 
     # Save detailed results
-    with open(classifications, "w") as f:
+    with open(classifications, "w", encoding="utf-8") as f:
         json.dump(scanner.get_results(), f, indent=2)
 
     # Print summary
@@ -91,7 +91,7 @@ def list_emails(
     output: Path = typer.Option(None, "--output", "-o", help="Save results to JSON file"),
 ):
     """List all documents classified as emails."""
-    with open(classifications) as f:
+    with open(classifications, encoding="utf-8") as f:
         results = json.load(f)
 
     # Filter emails
@@ -130,7 +130,7 @@ def list_emails(
 
     # Save to file if requested
     if output:
-        with open(output, "w") as f:
+        with open(output, "w", encoding="utf-8") as f:
             json.dump(emails, f, indent=2)
         console.print(f"\n[bold green]✓ Saved {len(emails)} emails to:[/bold green] {output}")
 
@@ -140,7 +140,7 @@ def stats(
     report: Path = typer.Argument(..., help="Survey report JSON file", exists=True),
 ):
     """Display detailed statistics from a survey report."""
-    with open(report) as f:
+    with open(report, encoding="utf-8") as f:
         data = json.load(f)
 
     console.print("[bold]Survey Report[/bold]")

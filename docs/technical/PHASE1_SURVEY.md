@@ -88,6 +88,23 @@ Simple regex patterns for seed entities:
 - No disambiguation (different people with same name)
 - Context-free (can't distinguish mentions from participation)
 
+**Future Philosophy:**
+
+> **Important principle:** In future phases, all entities (people, organizations, etc.) should be extracted from the data itself using NLP/NER techniques, not hardcoded or asserted in the code.
+
+The current regex-based seed entity list was necessary for the Phase 1 survey to quickly validate the project's viability. However, this approach has significant limitations:
+- We only find what we're looking for (confirmation bias risk)
+- Miss variations, nicknames, and titles
+- Limited to predefined list of names
+
+**Phase 2+ approach:** Use Named Entity Recognition (NER) from NLP libraries (spaCy, etc.) to discover all entities mentioned in the documents. This ensures we:
+- Discover what's actually in the data
+- Find unexpected relationships
+- Avoid confirmation bias
+- Capture all name variations automatically
+
+This "discover, don't assert" principle applies to all future data modeling decisions.
+
 ### Confidence Scoring
 - ≥0.7 = High confidence (used for filtering)
 - 0.3-0.7 = Medium confidence

@@ -40,7 +40,7 @@ Add to your Claude Desktop config file:
       "args": [
         "run",
         "--directory",
-        "/home/devon/Projects/unsealed-networks/unsealed-networks",
+        "/path/to/unsealed-networks",
         "unsealed-networks-mcp"
       ],
       "env": {}
@@ -49,7 +49,7 @@ Add to your Claude Desktop config file:
 }
 ```
 
-**Important:** Update the `--directory` path to match your installation.
+**Important:** Update the `--directory` path to match your installation location.
 
 ### 4. Restart Claude Desktop
 

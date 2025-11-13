@@ -52,6 +52,9 @@ Thumbs.db
 survey_report.json
 classification_results.json
 
+# Scratch folder for temporary work files
+scratch/
+
 # Keep data structure but ignore actual data files
 source_text/**/*.txt
 source_text/**/*.zip

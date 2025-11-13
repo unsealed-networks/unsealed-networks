@@ -33,7 +33,7 @@ def load_documents(
     conn = init_database(db_path)
 
     # Load classifications
-    with open(classifications_json) as f:
+    with open(classifications_json, encoding="utf-8") as f:
         classifications = json.load(f)
 
     console.print(f"[bold]Loading {len(classifications)} documents into database...[/bold]")
