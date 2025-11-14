@@ -210,6 +210,131 @@
 
 ---
 
+## Phase 3.5: epstein-docs.github.io Data Integration
+
+**Reference**: https://github.com/epstein-docs/epstein-docs.github.io
+
+**Context**: This project has already processed 29,439 pages (vs our 2,897 docs) using OpenAI Vision API with full OCR, entity extraction, deduplication, and AI document analyses. We should integrate their data as an external source rather than recreating it.
+
+### Benefits of Integration
+- **10x more document coverage**: 29,439 pages vs our 2,897
+- **High-quality entity deduplication**: AI-powered canonical name mappings (dedupe.json)
+- **Document analyses**: 8,186 AI-generated summaries with key topics, people, significance
+- **Cross-validation**: Compare our extractions against theirs for quality assurance
+- **Handwritten text**: Their Vision API handles handwriting better than traditional OCR
+
+### Import Entity Deduplication Mappings
+- [ ] Clone epstein-docs.github.io repository to parallel-projects
+- [ ] Load dedupe.json entity mappings
+  - [ ] Parse people mappings (e.g., "Epstein" → "Jeffrey Epstein")
+  - [ ] Parse organization mappings
+  - [ ] Parse location mappings
+- [ ] Build canonical entity resolution system
+  - [ ] Create entity_aliases table linking variations to canonical forms
+  - [ ] Apply their mappings to our extracted entities
+  - [ ] Use as seed data for our own deduplication
+- [ ] Cross-reference entity names
+  - [ ] Compare our entity extractions with their mappings
+  - [ ] Flag entities we extracted that aren't in their dedupe list
+  - [ ] Identify potential new aliases/variations
+
+### Import Document Analyses
+- [ ] Load analyses.json (8,186 document analyses)
+- [ ] Parse analysis structure:
+  - [ ] Document type classification
+  - [ ] Key topics extraction
+  - [ ] Key people with roles
+  - [ ] Significance assessment
+  - [ ] Executive summaries
+- [ ] Match analyses to our documents
+  - [ ] Build doc ID mapping (their doc numbers → our doc IDs)
+  - [ ] Link by document number patterns
+  - [ ] Handle documents we both have
+- [ ] Store analyses in database
+  - [ ] Create document_analyses table
+  - [ ] Add fields: summary, key_topics (JSON), key_people (JSON), significance
+  - [ ] Link to our documents table via doc_id
+- [ ] Use for search enhancement
+  - [ ] Index summaries in FTS5 for semantic search
+  - [ ] Enable filtering by key topics
+  - [ ] Surface key people in search results
+
+### Document Overlap Analysis
+- [ ] Identify documents in both datasets
+  - [ ] Extract document numbers from our 2,897 docs
+  - [ ] Extract document numbers from their 29,439 pages
+  - [ ] Build intersection set (docs we both processed)
+- [ ] Compare extraction quality
+  - [ ] Compare entity counts (our extraction vs theirs)
+  - [ ] Compare text extraction (OCR quality)
+  - [ ] Identify discrepancies (entities we found vs they found)
+  - [ ] Calculate accuracy metrics (precision/recall)
+- [ ] Build validation report
+  - [ ] Document-by-document comparison
+  - [ ] Flag significant discrepancies for manual review
+  - [ ] Identify parser improvement opportunities
+  - [ ] Generate quality metrics dashboard
+
+### Import Unique Documents
+- [ ] Identify documents only in epstein-docs corpus
+  - [ ] Calculate: 29,439 - (overlap count) = unique docs
+  - [ ] Estimated ~26,500 unique documents
+- [ ] Design import strategy
+  - [ ] Option A: Reference their processed JSON files directly
+  - [ ] Option B: Import their data into our database
+  - [ ] Option C: Hybrid (import metadata, reference full text)
+- [ ] Load their processed results
+  - [ ] Parse 29,439 JSON files from results/ directory
+  - [ ] Extract: full_text, entities, metadata, text_blocks
+  - [ ] Handle document grouping (pages → complete documents)
+- [ ] Import into our database
+  - [ ] Add source_system field ("epstein-docs" vs "unsealed-networks")
+  - [ ] Preserve their document IDs and page numbers
+  - [ ] Import full text into documents table
+  - [ ] Import entities into entity_mentions table
+  - [ ] Mark as external_source = TRUE for attribution
+- [ ] Update statistics
+  - [ ] Recalculate total document count (~32,000+)
+  - [ ] Update entity counts with deduplicated totals
+  - [ ] Measure coverage improvement
+
+### Cross-Validation & Quality Assurance
+- [ ] Build comparison framework
+  - [ ] For overlapping docs, compare entity lists side-by-side
+  - [ ] Identify entities they found that we missed (false negatives)
+  - [ ] Identify entities we found that they missed (potential improvements)
+- [ ] Learn from discrepancies
+  - [ ] Analyze why Vision API caught entities we missed
+  - [ ] Identify patterns in handwritten text we failed to OCR
+  - [ ] Improve our parsers based on gaps
+- [ ] Enhance our entity extraction
+  - [ ] Add missing entity patterns to our regex
+  - [ ] Fine-tune Ollama prompts based on their results
+  - [ ] Consider hybrid approach: our parsers + their Vision API for hard cases
+
+### Attribution & Documentation
+- [ ] Add data source attribution
+  - [ ] Credit epstein-docs.github.io in README
+  - [ ] Add "source" field to all imported entities/documents
+  - [ ] Maintain provenance for transparency
+- [ ] Document integration methodology
+  - [ ] Write DATA_SOURCES.md explaining integration
+  - [ ] Document mapping strategy (their IDs → our IDs)
+  - [ ] Explain deduplication approach
+- [ ] License compliance
+  - [ ] Verify MIT license compatibility
+  - [ ] Include attribution as required
+  - [ ] Document data lineage
+
+### Integration Metrics (Target)
+- **Total Documents**: ~32,000 (2,897 + ~29,000 unique)
+- **Total Entities**: TBD after deduplication
+- **Overlap**: ~2,500 documents (for validation)
+- **Analyses**: 8,186 AI summaries
+- **Coverage Improvement**: 10x increase
+
+---
+
 ## Phase 4: Database Schema Update & Relationship Storage
 
 ### Schema Design
@@ -248,11 +373,13 @@
 
 ## Phase 5: Relationship Graph Construction
 
+**Architecture Decision**: NetworkX + SQLite for portability (container/Lambda deployments)
+
 ### Graph Design
-- [ ] Choose graph approach:
-  - [ ] Option A: NetworkX (in-memory, Python)
-  - [ ] Option B: Neo4j (dedicated graph database)
-  - [ ] Option C: Hybrid (NetworkX + SQLite storage)
+- [x] Choose graph approach: **NetworkX + SQLite hybrid**
+  - **Why**: Portability - ship graph inside container or Lambda
+  - **How**: NetworkX for graph algorithms, SQLite for persistent storage
+  - **NOT using**: Neo4j (external service, deployment complexity)
 - [ ] Define node types:
   - [ ] People
   - [ ] Organizations
@@ -266,20 +393,24 @@
   - [ ] REPRESENTED_BY (party → attorney)
   - [ ] THREAD_PARTICIPANT (person → email_thread)
 
-### Graph Construction
-- [ ] Build graph from database
-  - [ ] Load email relationships
-  - [ ] Load legal case relationships
-  - [ ] Load entity mentions
-  - [ ] Load cross-document relationships
+### Graph Construction (NetworkX + SQLite)
+- [ ] Build NetworkX graph from SQLite database
+  - [ ] Load email relationships (sender → recipient edges)
+  - [ ] Load legal case relationships (party ↔ case edges)
+  - [ ] Load entity mentions (entity → document edges)
+  - [ ] Load cross-document relationships (co-occurrence edges)
 - [ ] Add confidence scoring to edges
-- [ ] Implement graph queries:
-  - [ ] Find all connections between two people
-  - [ ] Find shortest path between entities
-  - [ ] Identify central figures (degree centrality)
-  - [ ] Find communities/clusters
-  - [ ] Temporal analysis (relationships over time)
-- [ ] Export graph formats (GraphML, JSON, etc.)
+- [ ] Persist graph to SQLite
+  - [ ] Create graph_nodes table (node_id, type, properties JSON)
+  - [ ] Create graph_edges table (source, target, type, weight, properties JSON)
+  - [ ] Build efficient indexes for graph queries
+- [ ] Implement NetworkX graph queries:
+  - [ ] Find all connections between two people (shortest_path)
+  - [ ] Find shortest path between entities (dijkstra)
+  - [ ] Identify central figures (degree_centrality, betweenness_centrality)
+  - [ ] Find communities/clusters (community detection algorithms)
+  - [ ] Temporal analysis (relationships over time with edge timestamps)
+- [ ] Export graph formats (GraphML, JSON, pickle) for external tools
 
 ### Visualization
 - [ ] Choose visualization tool:
@@ -340,6 +471,45 @@
 - [ ] Add historical tracking
 - [ ] Handle document updates/corrections
 
+### Additional Data Sources (epstein-network-graph integration)
+- [ ] Integrate Flight Logs (1991-2019)
+  - [ ] Download flight logs from DocumentCloud
+    - URL: https://www.documentcloud.org/documents/6404379-Epstein-Flight-Logs-Lolita-Express/
+    - 118 pages of passenger manifests and flight records
+  - [ ] Parse JSON/CSV passenger manifests
+  - [ ] Extract passenger names, dates, routes, aircraft tail numbers
+  - [ ] Build FlightLogParser for structured data
+  - [ ] Link passengers to entity database
+  - [ ] Create flight timeline visualization data
+- [ ] Integrate Black Book
+  - [ ] Download black book from DocumentCloud (redacted version)
+    - URL: https://www.documentcloud.org/documents/1508273-jeffrey-epsteins-little-black-book-redacted/
+    - 92 pages (redacted)
+  - [ ] Import complete CSV from epsteinsblackbook.com
+    - 95 pages complete, 1,500+ entries with phone/addresses
+  - [ ] Parse contact information (names, phone, addresses)
+  - [ ] Build BlackBookParser for structured data
+  - [ ] Deduplicate and merge with existing entities
+  - [ ] Add contact relationship edges to graph
+- [ ] Integrate 50th Birthday Book (2003)
+  - [ ] Download birthday book from DocumentCloud
+    - URL: https://www.documentcloud.org/documents/26086390-jeffrey-epstein-50th-birthday-book/
+    - 238 pages of messages, drawings, and photos
+  - [ ] Parse JSON with messages, drawings, photos
+  - [ ] Extract sender names and relationship context
+  - [ ] Handle handwriting/scan quality issues
+  - [ ] Build BirthdayBookParser for structured data
+  - [ ] Add social relationship edges to graph
+- [ ] Cross-reference entities across all sources
+  - [ ] Build entity resolution for name variations
+  - [ ] Link flight passengers to black book entries
+  - [ ] Link birthday book senders to other sources
+  - [ ] Calculate entity centrality across all data
+- [ ] Document source attribution
+  - [ ] Track which source(s) each entity appears in
+  - [ ] Add confidence scores per source
+  - [ ] Create data lineage documentation
+
 ### Performance Optimization
 - [ ] Profile query performance at scale
 - [ ] Optimize slow queries
@@ -373,6 +543,122 @@
 - [ ] Topic modeling/clustering
 - [ ] Anomaly detection
 - [ ] Pattern discovery
+
+---
+
+## Phase 9: Future Integrations from Parallel Projects
+
+### Inspired by epstein-network-graph & epstein-document-search
+
+**References:**
+- epstein-network-graph: https://github.com/dleerdefi/epstein-network-graph
+- epstein-document-search: https://github.com/paulgp/epstein-document-search
+
+### High-Priority Integrations
+
+#### Meilisearch Search Engine
+- [ ] Replace SQLite FTS5 with Meilisearch for faster, typo-tolerant search
+  - [ ] Set up Meilisearch instance (Docker or cloud)
+  - [ ] Port `prepare_for_meilisearch.py` logic for document indexing
+  - [ ] Configure searchable/filterable attributes (entities, dates, doc types)
+  - [ ] Implement batch indexing with smart chunking (18MB limit handling)
+  - [ ] Add typo tolerance, faceted filtering, highlighted results
+  - [ ] Update MCP tools to use Meilisearch instead of SQLite FTS5
+  - [ ] Performance: 10-100x faster than SQLite at scale
+  - [ ] **Benefit**: Blazing-fast search with typo correction, better UX
+
+#### Static Search Frontend
+- [ ] Create static HTML search interface (no backend required)
+  - [ ] Port `website/index.html` from epstein-document-search
+  - [ ] Adapt for unsealed-networks document types
+  - [ ] Add entity filtering, date range filtering, document type filters
+  - [ ] Implement pagination and "Load More" functionality
+  - [ ] Deploy to GitHub Pages at unsealed-networks.github.io
+  - [ ] **Benefit**: Public search interface accessible to non-technical users
+
+#### Entity Importance Weighting System
+- [ ] Implement 3-tier pyramid scoring system
+  - [ ] Define document tiers (email < legal < flight logs/key sources)
+  - [ ] Calculate presence score (which document types mention entity)
+  - [ ] Calculate frequency score (how often entity appears)
+  - [ ] Calculate richness score (data density: contacts, addresses, roles)
+  - [ ] Build composite importance algorithm (normalized 0-100)
+  - [ ] Add importance scores to entity database
+  - [ ] Use scores for ranking in search results and graph visualization
+  - [ ] **Benefit**: Objective, quantitative entity ranking without bias
+
+#### Multimodal Document Extraction
+- [ ] Integrate Claude Vision API for handwritten/poor-quality documents
+  - [ ] Port image preprocessing scripts (`crop_*.py`)
+  - [ ] Implement auto-cropping for border removal (50-70% size reduction)
+  - [ ] Add quality assessment for OCR results
+  - [ ] Fall back to Claude Vision when OCR quality < 70%
+  - [ ] Extract handwritten annotations, signatures, marginalia
+  - [ ] Port extraction methodology from `EXAMPLE-CLAUDE.md`
+  - [ ] **Benefit**: Handle handwritten docs, redactions, poor scans (85-90% accuracy)
+
+#### Amazon MTurk for Human Validation
+- [ ] Set up Amazon Mechanical Turk workflow for handwritten notes
+  - [ ] Create HITs (Human Intelligence Tasks) for ambiguous extractions
+  - [ ] Design validation UI showing original image + AI extraction
+  - [ ] Implement quality control (multiple workers, consensus)
+  - [ ] Collect corrections and feed back into entity database
+  - [ ] Track confidence scores (AI-only vs human-validated)
+  - [ ] Build two-pass workflow: AI extraction → MTurk validation
+  - [ ] **Benefit**: Human-in-the-loop for AI failures, crowdsourced accuracy
+
+### Medium-Priority Integrations
+
+#### Master Entity List with Deduplication
+- [ ] Create canonical entity name mapping
+  - [ ] Import 85+ verified names from epstein-network-graph
+  - [ ] Build name variation dictionary (Jeffrey/Jeff, etc.)
+  - [ ] Implement fuzzy matching (Levenshtein distance < 2)
+  - [ ] Add phonetic matching (Soundex/Metaphone)
+  - [ ] Cross-reference phone numbers as unique identifiers
+  - [ ] Maintain aliases and link to canonical forms
+  - [ ] **Benefit**: Resolve duplicate entities, standardize names
+
+#### Court Document Parser Improvements
+- [ ] Port proven regex patterns from epstein-document-search
+  - [ ] Improve case number extraction (current: 63% → target: 95%)
+  - [ ] Add filing date pattern: `Filed ([\d/]+)`
+  - [ ] Add page pattern: `Page (\d+) of (\d+)`
+  - [ ] Add court header pattern for metadata extraction
+  - [ ] **Benefit**: Higher accuracy on legal document parsing
+
+#### Two-Pass Validation Framework
+- [ ] Implement V1 (automated) → V2 (manual review) workflow
+  - [ ] Add version field to all extractions (v1/v2)
+  - [ ] Build validation UI for manual review
+  - [ ] Track reviewer metadata (who, when, confidence)
+  - [ ] Add confidence scoring to all extracted fields
+  - [ ] Create community contribution guidelines
+  - [ ] Implement error reporting with structured tags
+  - [ ] **Benefit**: Data quality assurance, audit trail, community validation
+
+#### Image Preprocessing Pipeline
+- [ ] Add automated image optimization to ETL
+  - [ ] Border cropping for noise removal
+  - [ ] Resize/optimize for OCR (2048x2650 standard)
+  - [ ] Batch processing for large document sets
+  - [ ] **Benefit**: Improved OCR accuracy, reduced processing time
+
+### Long-Term Integrations
+
+#### GraphRAG Query Interface
+- [ ] Natural language graph queries
+  - [ ] Combine knowledge graph with LLM reasoning
+  - [ ] Enable questions like "Who flew with X between 2000-2005?"
+  - [ ] Hybrid retrieval: graph queries + document search
+  - [ ] FastAPI backend for query orchestration
+
+#### Advanced Visualization
+- [ ] Port PyVis/NetworkX visualization approaches
+  - [ ] Interactive network graphs with node sizing by importance
+  - [ ] Timeline visualizations for temporal analysis
+  - [ ] Geographic distribution maps
+  - [ ] Relationship heat maps
 
 ---
 
