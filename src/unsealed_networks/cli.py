@@ -13,8 +13,12 @@ from rich.console import Console
 from rich.progress import Progress
 from rich.table import Table
 
+from .database.auto_merge import batch_auto_merge, save_merge_log
+from .database.canonical import get_canonical_stats, initialize_canonical_entities
 from .database.entity_loader import batch_extract_entities
+from .database.llm_review import batch_llm_review, save_review_log
 from .database.loader import load_documents
+from .database.merge_finder import generate_merge_report
 from .database.queries import find_email_threads, find_entity_mentions, get_dlq_documents
 from .survey.scanner import DocumentScanner
 
@@ -348,6 +352,194 @@ def extract_entities(
 
     console.print(f"\n[bold]Database updated:[/bold] {db_path}")
     console.print(f"  Size: {db_path.stat().st_size / (1024 * 1024):.1f} MB")
+
+
+@app.command()
+def init_canonical(
+    db_path: Path = typer.Option("data/unsealed.db", "--db", "-d", help="Database path"),
+    show_stats: bool = typer.Option(True, "--stats", help="Show statistics after initialization"),
+):
+    """Initialize canonical entities for entity merging/normalization.
+
+    Creates a 1:1 mapping where each entity is its own canonical entity.
+    This is the starting point before any merging occurs.
+    """
+    if not db_path.exists():
+        console.print(f"[red]Database not found:[/red] {db_path}")
+        console.print("\nRun 'unsealed-networks extract-entities' first")
+        raise typer.Exit(1)
+
+    # Initialize canonical entities
+    result = initialize_canonical_entities(db_path)
+
+    if result.get("status") == "already_initialized":
+        console.print("\n[dim]Use --force to reinitialize (not yet implemented)[/dim]")
+    elif show_stats:
+        # Show statistics
+        console.print("\n[bold]Canonical Entity Statistics:[/bold]")
+        stats = get_canonical_stats(db_path)
+
+        console.print(f"  Total canonical entities: {stats['total_canonical']}")
+        console.print(f"  Total entity aliases: {stats['total_aliases']}")
+        console.print(f"  Avg aliases per canonical: {stats['avg_aliases_per_canonical']:.2f}")
+
+        if stats.get("by_type"):
+            console.print("\n[bold]By Type:[/bold]")
+            for entity_type, count in stats["by_type"].items():
+                console.print(f"  {entity_type:15s}: {count:6d}")
+
+
+@app.command()
+def find_duplicates(
+    db_path: Path = typer.Option("data/unsealed.db", "--db", "-d", help="Database path"),
+    entity_type: str = typer.Option(
+        "person", "--type", "-t", help="Entity type (person, organization, location, date)"
+    ),
+    min_occurrences: int = typer.Option(
+        5, "--min-occurrences", "-m", help="Minimum occurrences to consider"
+    ),
+    output: Path = typer.Option(
+        "scratch/merge_candidates.json", "--output", "-o", help="Output JSON report file"
+    ),
+):
+    """Find potential duplicate entities using similarity metrics.
+
+    Uses Levenshtein distance and Jaccard similarity to find entities
+    that are likely duplicates (typos, variations, OCR errors).
+    """
+    if not db_path.exists():
+        console.print(f"[red]Database not found:[/red] {db_path}")
+        console.print("\nRun 'unsealed-networks init-canonical' first")
+        raise typer.Exit(1)
+
+    # Generate report
+    report = generate_merge_report(
+        db_path=db_path,
+        entity_type=entity_type,
+        min_occurrences=min_occurrences,
+        output_file=output,
+    )
+
+    # Print summary
+    console.print("\n[bold green]✓ Merge candidate analysis complete![/bold green]")
+    console.print("\n[bold]Summary:[/bold]")
+    console.print(f"  Entity type: {report['entity_type']}")
+    console.print(f"  Min occurrences: {report['min_occurrences']}")
+    console.print(f"  Total candidates: {report['total_candidates']}")
+
+    console.print("\n[bold]By Confidence Level:[/bold]")
+    console.print(f"  [green]Auto-merge (≥95%)[/green]:     {report['auto_merge_count']:3d} pairs")
+    console.print(f"  [yellow]LLM review (80-95%)[/yellow]:  {report['llm_review_count']:3d} pairs")
+    console.print(f"  [dim]Manual review (70-80%)[/dim]: {report['manual_review_count']:3d} pairs")
+
+    # Show top auto-merge candidates
+    if report["auto_merge"]:
+        console.print("\n[bold green]Top Auto-Merge Candidates:[/bold green]")
+        table = Table()
+        table.add_column("Entity 1", style="cyan")
+        table.add_column("Count", justify="right", style="dim")
+        table.add_column("Entity 2", style="cyan")
+        table.add_column("Count", justify="right", style="dim")
+        table.add_column("Conf.", justify="right", style="green")
+        table.add_column("Reason", style="dim")
+
+        for candidate in report["auto_merge"][:10]:
+            table.add_row(
+                candidate["entity1"]["text"],
+                str(candidate["entity1"]["count"]),
+                candidate["entity2"]["text"],
+                str(candidate["entity2"]["count"]),
+                f"{candidate['confidence']:.2f}",
+                candidate["reason"][:50],
+            )
+
+        console.print(table)
+
+    console.print(f"\n[bold]Full report saved to:[/bold] {output}")
+
+
+@app.command()
+def auto_merge(
+    db_path: Path = typer.Option("data/unsealed.db", "--db", "-d", help="Database path"),
+    candidates: Path = typer.Option(
+        "scratch/merge_candidates.json", "--candidates", "-c", help="Merge candidates JSON file"
+    ),
+    min_confidence: float = typer.Option(
+        0.95, "--min-confidence", help="Minimum confidence to auto-merge"
+    ),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Preview merges without executing"),
+    log_file: Path = typer.Option(
+        "scratch/auto_merge_log.json", "--log", "-l", help="Output log file"
+    ),
+):
+    """Automatically merge high-confidence entity duplicates.
+
+    Merges entities with confidence >= 0.95 (typos, OCR errors, rare variants).
+    """
+    if not db_path.exists():
+        console.print(f"[red]Database not found:[/red] {db_path}")
+        raise typer.Exit(1)
+
+    if not candidates.exists():
+        console.print(f"[red]Candidates file not found:[/red] {candidates}")
+        console.print("\nRun 'unsealed-networks find-duplicates' first")
+        raise typer.Exit(1)
+
+    # Run auto-merge
+    stats = batch_auto_merge(
+        db_path=db_path,
+        candidates_file=candidates,
+        min_confidence=min_confidence,
+        dry_run=dry_run,
+    )
+
+    # Save log
+    if not dry_run:
+        save_merge_log(stats, log_file)
+
+
+@app.command()
+def llm_review(
+    db_path: Path = typer.Option("data/unsealed.db", "--db", "-d", help="Database path"),
+    candidates: Path = typer.Option(
+        "scratch/merge_candidates.json", "--candidates", "-c", help="Merge candidates JSON file"
+    ),
+    min_confidence: float = typer.Option(
+        0.80, "--min-confidence", help="Minimum confidence for LLM review"
+    ),
+    max_confidence: float = typer.Option(
+        0.95, "--max-confidence", help="Maximum confidence for LLM review"
+    ),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Preview merges without executing"),
+    log_file: Path = typer.Option(
+        "scratch/llm_review_log.json", "--log", "-l", help="Output log file"
+    ),
+):
+    """Review merge candidates using LLM (qwen2.5:7b).
+
+    Reviews entities with medium confidence (0.80-0.95) using LLM to validate.
+    Merges entities that LLM approves.
+    """
+    if not db_path.exists():
+        console.print(f"[red]Database not found:[/red] {db_path}")
+        raise typer.Exit(1)
+
+    if not candidates.exists():
+        console.print(f"[red]Candidates file not found:[/red] {candidates}")
+        console.print("\nRun 'unsealed-networks find-duplicates' first")
+        raise typer.Exit(1)
+
+    # Run LLM review
+    stats = batch_llm_review(
+        db_path=db_path,
+        candidates_file=candidates,
+        min_confidence=min_confidence,
+        max_confidence=max_confidence,
+        dry_run=dry_run,
+    )
+
+    # Save log
+    save_review_log(stats, log_file)
 
 
 @app.command()

@@ -67,6 +67,88 @@ def init_database(db_path: Path) -> sqlite3.Connection:
         ON entities(normalized_text, type)
     """)
 
+    # Create canonical entities table for entity merging/normalization
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS canonical_entities (
+            canonical_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            entity_type TEXT NOT NULL
+                CHECK(entity_type IN ('person', 'organization', 'location', 'date')),
+            canonical_text TEXT NOT NULL,
+            canonical_normalized TEXT NOT NULL,
+            total_mentions INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(canonical_normalized, entity_type)
+        )
+    """)
+
+    # Create index on canonical entities for fast lookups
+    conn.execute("""
+        CREATE INDEX IF NOT EXISTS idx_canonical_normalized
+        ON canonical_entities(entity_type, canonical_normalized)
+    """)
+
+    # Create entity aliases table to map entities to canonical forms
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS entity_aliases (
+            entity_id INTEGER PRIMARY KEY,
+            canonical_id INTEGER NOT NULL,
+            is_canonical BOOLEAN DEFAULT 0,
+            merge_method TEXT,
+            merge_confidence REAL,
+            merged_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            merged_by TEXT,
+            FOREIGN KEY (entity_id) REFERENCES entities(entity_id),
+            FOREIGN KEY (canonical_id) REFERENCES canonical_entities(canonical_id)
+        )
+    """)
+
+    # Create index for fast canonical lookups
+    conn.execute("""
+        CREATE INDEX IF NOT EXISTS idx_entity_aliases_canonical
+        ON entity_aliases(canonical_id)
+    """)
+
+    # Create FTS5 virtual table for canonical entity search
+    conn.execute("""
+        CREATE VIRTUAL TABLE IF NOT EXISTS canonical_entities_fts USING fts5(
+            canonical_text,
+            canonical_normalized,
+            content='canonical_entities',
+            content_rowid='canonical_id'
+        )
+    """)
+
+    # Triggers to keep canonical_entities_fts in sync
+    conn.execute("""
+        CREATE TRIGGER IF NOT EXISTS canonical_entities_ai AFTER INSERT ON canonical_entities BEGIN
+            INSERT INTO canonical_entities_fts(rowid, canonical_text, canonical_normalized)
+            VALUES (new.canonical_id, new.canonical_text, new.canonical_normalized);
+        END
+    """)
+
+    conn.execute("""
+        CREATE TRIGGER IF NOT EXISTS canonical_entities_ad
+        AFTER DELETE ON canonical_entities BEGIN
+            INSERT INTO canonical_entities_fts(
+                canonical_entities_fts, rowid, canonical_text, canonical_normalized
+            )
+            VALUES('delete', old.canonical_id, old.canonical_text, old.canonical_normalized);
+        END
+    """)
+
+    conn.execute("""
+        CREATE TRIGGER IF NOT EXISTS canonical_entities_au
+        AFTER UPDATE ON canonical_entities BEGIN
+            INSERT INTO canonical_entities_fts(
+                canonical_entities_fts, rowid, canonical_text, canonical_normalized
+            )
+            VALUES('delete', old.canonical_id, old.canonical_text, old.canonical_normalized);
+            INSERT INTO canonical_entities_fts(rowid, canonical_text, canonical_normalized)
+            VALUES (new.canonical_id, new.canonical_text, new.canonical_normalized);
+        END
+    """)
+
     # Create document_entities junction table with rich metadata
     conn.execute("""
         CREATE TABLE IF NOT EXISTS document_entities (
@@ -209,5 +291,6 @@ def rebuild_fts_index(conn: sqlite3.Connection):
     """Rebuild all FTS5 indexes from their source tables."""
     conn.execute("INSERT INTO documents_fts(documents_fts) VALUES('rebuild')")
     conn.execute("INSERT INTO entities_fts(entities_fts) VALUES('rebuild')")
+    conn.execute("INSERT INTO canonical_entities_fts(canonical_entities_fts) VALUES('rebuild')")
     conn.execute("INSERT INTO thread_messages_fts(thread_messages_fts) VALUES('rebuild')")
     conn.commit()
