@@ -1,0 +1,37 @@
+{
+  "doc_id": "HOUSE_OVERSIGHT_030716",
+  "original_file": "HOUSE_OVERSIGHT_030716.txt",
+  "created_at": "2025-11-14T19:54:02.503898Z",
+  "updated_at": "2025-11-14T19:57:03.822043Z",
+  "status": "processing",
+  "provenance": {},
+  "steps": [
+    {
+      "step_name": "extract_urls",
+      "step_version": 1,
+      "started_at": "2025-11-14T19:54:02.503915Z",
+      "completed_at": "2025-11-14T19:54:02.505519Z",
+      "status": "success",
+      "outcome": {
+        "urls_found": 0,
+        "urls": []
+      },
+      "error": null
+    },
+    {
+      "step_name": "classify",
+      "step_version": 1,
+      "started_at": "2025-11-14T19:57:03.819920Z",
+      "completed_at": "2025-11-14T19:57:03.822038Z",
+      "status": "success",
+      "outcome": {
+        "doc_type": "other",
+        "confidence": 0.5,
+        "subtype": null
+      },
+      "error": null
+    }
+  ],
+  "metadata": {},
+  "error": null
+}
