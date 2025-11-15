@@ -589,8 +589,10 @@ nonsense text, or not real entities."""
         self, entities: dict[str, list[Entity]], validation_result: dict[str, Any]
     ) -> dict[str, list[Entity]]:
         """Apply LLM validation results by filtering out invalid entities."""
-        # Build lookup of validation results
-        validation_lookup = {v["text"]: v for v in validation_result.get("validation_results", [])}
+        # Build lookup of validation results keyed by (text, type) to avoid collisions
+        validation_lookup = {
+            (v["text"], v.get("type")): v for v in validation_result.get("validation_results", [])
+        }
 
         # Filter entities based on validation
         filtered = {}
@@ -598,8 +600,8 @@ nonsense text, or not real entities."""
             filtered_list = []
             for entity in entity_list:
                 # Check if entity was validated
-                if entity.text in validation_lookup:
-                    validation = validation_lookup[entity.text]
+                if (entity.text, entity.type) in validation_lookup:
+                    validation = validation_lookup[(entity.text, entity.type)]
                     if validation.get("is_valid", True):
                         # Keep valid entities
                         filtered_list.append(entity)
