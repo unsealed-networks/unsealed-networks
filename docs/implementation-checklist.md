@@ -1,6 +1,6 @@
 # Unsealed Networks - Project Checklist
 
-**Last Updated:** 2025-01-13
+**Last Updated:** 2025-01-15
 
 ---
 
@@ -146,6 +146,80 @@
 
 ## Phase 3: Entity Extraction & "Other" Documents Investigation
 
+**Branch:** `feature/pipeline-architecture`
+
+### Pipeline Infrastructure (Complete)
+- [x] Design manifest-based pipeline architecture
+  - [x] Create Manifest class with step tracking
+  - [x] Build PipelineStep base class with run() method
+  - [x] Implement step versioning system
+  - [x] Add step status tracking (pending/running/success/error)
+  - [x] Store step outcomes and error details
+- [x] Implement step deduplication
+  - [x] Replace duplicate steps instead of appending
+  - [x] Keep only latest execution of each step
+  - [x] Deduplicate on manifest load (from_dict)
+- [x] Add dependency tracking
+  - [x] Declare step dependencies (depends_on property)
+  - [x] Implement automatic invalidation of dependent steps
+  - [x] Re-run dependent steps when parent version changes
+- [x] Code organization
+  - [x] Move pipeline steps: pipeline/steps/ → src/unsealed_networks/pipeline/steps/
+  - [x] Create utils module with file_io utilities
+  - [x] Update .gitignore to exclude pipeline data files
+
+### Pipeline Steps Implemented
+- [x] Step 01: Document classification (classify.py)
+- [x] Step 02: Email metadata extraction (v4)
+  - [x] Extract from/to/cc/bcc/subject/date
+  - [x] Build participants list with name+email
+  - [x] Remove redundant participant_names field
+- [x] Step 03: URL extraction (extract_urls.py)
+- [x] Step 04: Entity extraction (v7)
+  - [x] Extract persons, organizations, locations
+  - [x] Add position tracking (start/end) for context extraction
+  - [x] Include email participants as high-confidence entities
+  - [x] Hybrid regex + LLM extraction
+- [x] Step 99: Assemble metadata (assemble_metadata.py)
+  - [x] Consolidate data from all extraction steps
+  - [x] Populate final manifest.metadata field
+  - [x] Mark manifest as completed
+
+### Entity Position Tracking (Complete)
+- [x] Add position fields to Entity dataclass
+  - [x] start: int | None (character offset in document)
+  - [x] end: int | None (character offset in document)
+- [x] Update all regex extraction methods
+  - [x] Capture match.start() and match.end() for entities
+  - [x] Differentiate captured groups vs full matches
+  - [x] Add positions to person extraction
+  - [x] Add positions to organization extraction
+  - [x] Add positions to location extraction
+- [x] Enable context extraction for LLM merge decisions
+  - [x] Extract surrounding text using positions
+  - [x] Mark entity with ** in context window
+  - [x] Pass context to LLM for merge validation
+- [x] Testing & Validation
+  - [x] Test position tracking with scratch scripts
+  - [x] Verify deduplication logic with test manifest
+  - [x] Test dependency invalidation behavior
+  - [x] Validate entity context extraction
+
+### Entity Merge Detection & Resolution (In Progress)
+- [ ] Implement entity merge detection step
+  - [ ] Compare extracted entities with canonical entities
+  - [ ] Use fuzzy matching to find potential merges
+  - [ ] Extract context using position data
+  - [ ] Send to LLM for merge validation
+- [ ] Create canonical entity resolution step
+  - [ ] Maintain canonical_entities table
+  - [ ] Build entity_aliases mapping
+  - [ ] Track merge confidence scores
+- [ ] Add relationship tracking step
+  - [ ] Extract co-occurrences from documents
+  - [ ] Build entity-document relationships
+  - [ ] Track entity-entity relationships
+
 ### LLM-Assisted Classification (High Priority)
 - [ ] Set up Ollama integration
   - [x] Install qwen2.5:7b model (4.7 GB)
@@ -166,20 +240,30 @@
 - [ ] Create specialized parsers for common types
 - [ ] Document unprocessable documents
 
-### Entity Extraction with NLP/NER
-- [ ] Choose NER approach:
-  - [ ] Option A: spaCy with en_core_web_sm
-  - [ ] Option B: Stanford NER
-  - [ ] Option C: Local LLM (qwen2.5:7b or llama3.1:8b)
-  - [ ] Option D: Hybrid (regex + NLP validation)
-- [ ] Extract entities from all documents:
-  - [ ] Person names
-  - [ ] Organizations
-  - [ ] Locations
-  - [ ] Dates/events
-- [ ] Build entity resolution (handle name variations)
-- [ ] Store entities in database
-- [ ] Create entity relationship tables
+### Entity Extraction with NLP/NER (Complete)
+- [x] Choose NER approach:
+  - [x] Option D: Hybrid (regex + LLM validation) - **IMPLEMENTED**
+    - HybridEntityExtractor in entities/extractor.py
+    - Regex-first extraction for speed
+    - LLM fallback for validation and hard cases
+    - Using qwen2.5:7b via Ollama for LLM extraction
+- [x] Extract entities from all documents:
+  - [x] Person names (regex + LLM validation)
+  - [x] Organizations (regex patterns)
+  - [x] Locations (regex patterns)
+  - [x] Dates/events (date parsing with dateutil)
+- [x] Store entities in database
+  - [x] document_entities table (doc_id, entity_text, entity_type, confidence, etc.)
+  - [x] Position tracking (position_start, position_end)
+  - [x] Method tracking (regex, llm, email)
+- [x] Build canonical entity infrastructure
+  - [x] canonical_entities table (canonical_id, entity_type, canonical_text, total_mentions)
+  - [x] entity_aliases table (alias_text → canonical_id mapping)
+  - [x] Fuzzy matching for merge detection
+- [ ] Complete entity resolution implementation
+  - [ ] Run full entity merge detection on dataset
+  - [ ] Populate entity_aliases with validated merges
+  - [ ] Track merge confidence and validation method
 
 ### Parser Improvements
 - [ ] Improve legal parser party extraction
@@ -197,14 +281,17 @@
   - [ ] Extract key events mentioned
   - [ ] Extract person names
 
-### LLM Fallback for Failed Extractions (Optional)
-- [ ] Implement hybrid approach:
-  - [ ] Try regex first (fast)
-  - [ ] Fall back to LLM if regex fails
-- [ ] Use for:
+### LLM Fallback for Failed Extractions
+- [x] Implement hybrid approach for entity extraction:
+  - [x] Try regex first (fast) - regex patterns in HybridEntityExtractor
+  - [x] Fall back to LLM for validation - qwen2.5:7b via Ollama
+  - [x] LLM validates low-confidence regex extractions
+  - [x] LLM filters OCR errors and false positives
+- [ ] Extend to parser metadata extraction:
   - [ ] Legal party extraction (currently 0%)
   - [ ] News headlines (currently 9%)
   - [ ] News authors (currently 20%)
+  - [ ] Use LLM fallback when regex patterns fail
 - [ ] Measure performance improvement
 - [ ] Document LLM usage and costs
 
@@ -699,11 +786,23 @@
 
 ---
 
-## Current Status: Phase 2 Complete, Pending Merge
+## Current Status: Phase 3 Pipeline Infrastructure Complete
 
-**Branch:** `feature/email-parser`
+**Active Branches:**
+- `feature/email-parser` - Phase 2 parsers (PENDING MERGE)
+- `feature/pipeline-architecture` - Phase 3 pipeline system (READY FOR MERGE)
 
-**Recent Work:**
+**Recent Work (Phase 3 Pipeline):**
+- ✅ Built manifest-based pipeline architecture
+- ✅ Implemented step versioning and deduplication
+- ✅ Added dependency tracking with automatic invalidation
+- ✅ Moved pipeline steps to src/unsealed_networks/pipeline/steps/
+- ✅ Added position tracking to entity extraction (v7)
+- ✅ Enabled context extraction for LLM merge decisions
+- ✅ Updated .gitignore for pipeline data files
+- ✅ All tests passing, all hooks passing
+
+**Recent Work (Phase 2 Parsers):**
 - ✅ Built 3 specialized parsers (email, legal, news)
 - ✅ Built document classifier
 - ✅ Analyzed full dataset (2,897 documents)
@@ -713,10 +812,12 @@
 - ✅ Updated code review guidelines in CLAUDE.md
 
 **Next Immediate Steps:**
-1. Merge Phase 2 PR to main
-2. Begin Phase 3: LLM-assisted classification of "Other" documents
-3. Implement entity extraction with NER/LLM
-4. Update database schema for parsed metadata
+1. Merge Phase 2 PR to main (`feature/email-parser`)
+2. Merge Phase 3 pipeline PR to main (`feature/pipeline-architecture`)
+3. Implement entity merge detection pipeline step
+4. Create canonical entity resolution system
+5. Build entity relationship tracking
+6. Continue Phase 3: LLM-assisted classification of "Other" documents
 
 ---
 
