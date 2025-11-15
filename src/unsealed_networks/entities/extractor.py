@@ -25,6 +25,16 @@ class Entity:
     start: int | None = None  # Character position in document
     end: int | None = None  # Character position in document
 
+    def to_dict(self) -> dict[str, Any]:
+        """Convert entity to dictionary for serialization."""
+        return {
+            "name": self.text,
+            "confidence": self.confidence,
+            "method": self.method,
+            "start": self.start,
+            "end": self.end,
+        }
+
 
 class HybridEntityExtractor:
     """Extract entities using regex patterns with optional LLM validation.

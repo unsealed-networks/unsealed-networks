@@ -896,16 +896,19 @@ class TestExtractURLsStep:
         assert outcome["urls_found"] == 0
         assert outcome["urls"] == []
 
-    def test_updates_manifest_metadata(self, temp_doc, empty_manifest):
-        """Should update manifest metadata with extracted URLs."""
+    def test_stores_data_in_outcome(self, temp_doc, empty_manifest):
+        """Should store extracted URLs in step outcome, not global metadata."""
         temp_doc.write_text("Visit https://example.com")
 
         step = ExtractURLsStep()
-        step.execute(temp_doc, empty_manifest)
+        outcome = step.execute(temp_doc, empty_manifest)
 
-        # Check manifest was updated
-        assert "urls" in empty_manifest.metadata
-        assert empty_manifest.metadata["urls"] == ["https://example.com"]
+        # Check data is in outcome
+        assert "urls" in outcome
+        assert outcome["urls"][0]["url"] == "https://example.com"
+
+        # Verify global metadata is NOT updated by this step
+        assert "urls" not in empty_manifest.metadata
 
     def test_step_properties(self):
         """Should have correct step metadata."""

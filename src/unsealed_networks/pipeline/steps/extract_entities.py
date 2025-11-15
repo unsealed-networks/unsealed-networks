@@ -12,7 +12,7 @@ This step runs independently and doesn't depend on classification.
 from pathlib import Path
 from typing import Any
 
-from unsealed_networks.entities.extractor import HybridEntityExtractor
+from unsealed_networks.entities.extractor import Entity, HybridEntityExtractor
 from unsealed_networks.pipeline.manifest import Manifest
 from unsealed_networks.pipeline.step import PipelineStep, run_step_cli
 
@@ -76,8 +76,6 @@ class ExtractEntitiesStep(PipelineStep):
                 existing_persons = {p.text.lower() for p in entities.get("people", [])}
                 for name in participant_names:
                     if name and name.lower() not in existing_persons:
-                        from unsealed_networks.entities.extractor import Entity
-
                         entities.setdefault("people", []).append(
                             Entity(
                                 text=name,
@@ -90,36 +88,9 @@ class ExtractEntitiesStep(PipelineStep):
                         existing_persons.add(name.lower())
 
         # Convert to output format
-        persons = [
-            {
-                "name": e.text,
-                "confidence": e.confidence,
-                "method": e.method,
-                "start": e.start,
-                "end": e.end,
-            }
-            for e in entities.get("people", [])
-        ]
-        organizations = [
-            {
-                "name": e.text,
-                "confidence": e.confidence,
-                "method": e.method,
-                "start": e.start,
-                "end": e.end,
-            }
-            for e in entities.get("organizations", [])
-        ]
-        locations = [
-            {
-                "name": e.text,
-                "confidence": e.confidence,
-                "method": e.method,
-                "start": e.start,
-                "end": e.end,
-            }
-            for e in entities.get("locations", [])
-        ]
+        persons = [e.to_dict() for e in entities.get("people", [])]
+        organizations = [e.to_dict() for e in entities.get("organizations", [])]
+        locations = [e.to_dict() for e in entities.get("locations", [])]
 
         total = len(persons) + len(organizations) + len(locations)
 
