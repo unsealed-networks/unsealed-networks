@@ -69,13 +69,43 @@ Each document has a corresponding JSON manifest in `manifests/{doc_id}.json`:
 
 ## Pipeline Steps
 
-Steps are executed in order:
+Steps are **composable building blocks** located in `src/unsealed_networks/pipeline/steps/`. They declare dependencies explicitly and can be composed into different pipelines:
 
-1. `step_01_classify.py` - Classify document type (email, memo, letter, etc.)
-2. `step_02_extract_entities.py` - Extract people, organizations, locations
-3. `step_03_extract_urls.py` - Extract and validate URLs
-4. `step_04_fix_ocr_urls.py` - Detect and repair OCR-broken URLs
-5. `step_99_assemble_metadata.py` - Final metadata assembly
+### Available Steps
+- `classify.py` - Classify document type (email, memo, letter, etc.)
+- `extract_email_metadata.py` - Extract email headers and participants
+- `extract_urls.py` - Extract and validate URLs
+- `extract_entities.py` - Extract people, organizations, locations using hybrid regex + LLM approach with low-confidence validation
+- `assemble_metadata.py` - Final metadata consolidation
+
+### Entity Extraction Quality Control
+
+The `extract_entities.py` step uses a three-stage approach to ensure high-quality entity extraction:
+
+1. **Regex Extraction**: Fast pattern matching for common entity formats
+2. **LLM Extraction**: Finds entities regex patterns miss (e.g., single-word names like "Putin")
+3. **Low-Confidence Validation**: Entities with confidence < 0.80 are validated by LLM to filter out:
+   - OCR noise (e.g., "High\nAsk")
+   - Gibberish text (e.g., "Zxqw Rtyp")
+   - Partial words from OCR errors
+   - Text fragments that aren't real entities
+
+This multi-stage approach balances speed, accuracy, and quality.
+
+### Example: Text Document Pipeline
+```
+classify → extract_email_metadata → extract_urls → extract_entities → assemble_metadata
+```
+
+### Example: Future OCR Pipeline
+```
+ocr → classify → extract_entities → assemble_metadata
+```
+
+Steps can be run individually:
+```bash
+uv run python -m unsealed_networks.pipeline.steps.classify DOC_ID path/to/doc.txt
+```
 
 ## Step Invalidation & Reprocessing
 

@@ -87,11 +87,19 @@ class PipelineStep(ABC):
         else:
             manifest = Manifest.create_new(doc_id, doc_path.name)
 
-        # Check if step already executed successfully
+        # Check if step already executed successfully with same version
         existing_step = manifest.get_step(self.name)
         if existing_step and existing_step.status == "success":
-            console.print(f"[yellow]Step {self.name} already completed, skipping[/yellow]")
-            return True
+            if existing_step.step_version == self.version:
+                console.print(f"[yellow]Step {self.name} already completed, skipping[/yellow]")
+                return True
+            else:
+                console.print(
+                    f"[yellow]Step {self.name} version changed "
+                    f"({existing_step.step_version} → {self.version}), re-running[/yellow]"
+                )
+                # Invalidate dependent steps (they need to be re-run)
+                manifest.invalidate_dependent_steps(self.name)
 
         # Create step result with dependencies
         step_result = StepResult(

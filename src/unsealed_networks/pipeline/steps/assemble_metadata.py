@@ -31,7 +31,7 @@ class AssembleMetadataStep(PipelineStep):
 
     @property
     def depends_on(self) -> list[str]:
-        return ["classify", "extract_urls", "extract_entities"]
+        return ["classify", "extract_email_metadata", "extract_urls", "extract_entities"]
 
     def execute(self, doc_path: Path, manifest: Manifest) -> dict[str, Any]:
         """Assemble final metadata from all steps.
@@ -79,17 +79,22 @@ class AssembleMetadataStep(PipelineStep):
             orgs = entities_step.outcome.get("organizations", [])
             locs = entities_step.outcome.get("locations", [])
 
+            # Sort by confidence and take top entities
+            persons_sorted = sorted(persons, key=lambda x: x.get("confidence", 0), reverse=True)
+            orgs_sorted = sorted(orgs, key=lambda x: x.get("confidence", 0), reverse=True)
+            locs_sorted = sorted(locs, key=lambda x: x.get("confidence", 0), reverse=True)
+
             manifest.update_metadata(
                 "persons",
-                [p["name"] for p in persons[:20]],  # Top 20 persons
+                [p["name"] for p in persons_sorted[:20]],  # Top 20 persons by confidence
             )
             manifest.update_metadata(
                 "organizations",
-                [o["name"] for o in orgs[:10]],  # Top 10 orgs
+                [o["name"] for o in orgs_sorted[:10]],  # Top 10 orgs by confidence
             )
             manifest.update_metadata(
                 "locations",
-                [loc["name"] for loc in locs[:10]],  # Top 10 locations
+                [loc["name"] for loc in locs_sorted[:10]],  # Top 10 locations by confidence
             )
             manifest.update_metadata("entities_count", entities_step.outcome["entities_found"])
 

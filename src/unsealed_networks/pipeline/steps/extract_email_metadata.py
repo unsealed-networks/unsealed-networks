@@ -26,7 +26,7 @@ class ExtractEmailMetadataStep(PipelineStep):
 
     @property
     def version(self) -> int:
-        return 1
+        return 4  # Removed participant_names field - use participants object instead
 
     @property
     def depends_on(self) -> list[str]:
@@ -57,16 +57,25 @@ class ExtractEmailMetadataStep(PipelineStep):
 
         # Parse email
         parser = EmailParser()
-        metadata = parser.parse_file(doc_path)
+        metadata = parser.parse(doc_path)
+
+        # Build participants list (all addresses across from/to/cc/bcc)
+        participants = []
+        if metadata.from_addr:
+            participants.append(metadata.from_addr.to_dict())
+        participants.extend([addr.to_dict() for addr in metadata.to_addrs])
+        participants.extend([addr.to_dict() for addr in metadata.cc_addrs])
+        participants.extend([addr.to_dict() for addr in metadata.bcc_addrs])
 
         return {
             "skipped": False,
-            "from": metadata.from_email,
-            "to": metadata.to_emails,
-            "cc": metadata.cc_emails,
+            "from": metadata.from_addr.to_dict() if metadata.from_addr else None,
+            "to": [addr.to_dict() for addr in metadata.to_addrs],
+            "cc": [addr.to_dict() for addr in metadata.cc_addrs],
+            "bcc": [addr.to_dict() for addr in metadata.bcc_addrs],
             "subject": metadata.subject,
-            "date": metadata.date,
-            "participants": metadata.participants,
+            "date": metadata.date.isoformat() if metadata.date else None,
+            "participants": participants,
         }
 
 

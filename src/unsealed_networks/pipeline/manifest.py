@@ -6,6 +6,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from unsealed_networks.utils import atomic_write_json
+
 
 @dataclass
 class StepResult:
@@ -62,7 +64,9 @@ class Manifest:
     @property
     def manifest_path(self) -> Path:
         """Get path to manifest file."""
-        return Path("pipeline/manifests") / f"{self.doc_id}.json"
+        # Strip .json extension from doc_id if present to avoid .json.json
+        doc_id_base = self.doc_id.removesuffix(".json")
+        return Path("pipeline/manifests") / f"{doc_id_base}.json"
 
     @property
     def last_step(self) -> StepResult | None:
@@ -81,7 +85,15 @@ class Manifest:
         return None
 
     def add_step(self, step: StepResult) -> None:
-        """Add a step result to the manifest."""
+        """Add a step result to the manifest, replacing any existing step with the same name."""
+        # Find and replace existing step with the same name
+        for i, existing_step in enumerate(self.steps):
+            if existing_step.step_name == step.step_name:
+                self.steps[i] = step
+                self.updated_at = datetime.utcnow().isoformat() + "Z"
+                return
+
+        # No existing step found, append new one
         self.steps.append(step)
         self.updated_at = datetime.utcnow().isoformat() + "Z"
 
@@ -109,6 +121,28 @@ class Manifest:
                 self.updated_at = datetime.utcnow().isoformat() + "Z"
                 return
 
+    def invalidate_dependent_steps(self, step_name: str) -> None:
+        """Remove steps that depend on the given step.
+
+        When a step is re-run (e.g., version changed), any steps that depend on it
+        need to be invalidated and re-run to ensure consistency.
+
+        Args:
+            step_name: Name of the step that changed
+        """
+        steps_to_remove = []
+
+        for step in self.steps:
+            # Check if this step depends on the changed step
+            depends_on = step.outcome.get("depends_on", [])
+            if step_name in depends_on:
+                steps_to_remove.append(step.step_name)
+
+        # Remove dependent steps
+        if steps_to_remove:
+            self.steps = [s for s in self.steps if s.step_name not in steps_to_remove]
+            self.updated_at = datetime.utcnow().isoformat() + "Z"
+
     def to_dict(self) -> dict:
         """Convert to dictionary for JSON serialization."""
         return {
@@ -124,15 +158,15 @@ class Manifest:
         }
 
     def save(self) -> None:
-        """Save manifest to disk."""
-        self.manifest_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(self.manifest_path, "w", encoding="utf-8") as f:
-            json.dump(self.to_dict(), f, indent=2)
+        """Save manifest to disk using atomic write (write to .tmp then rename)."""
+        atomic_write_json(self.manifest_path, self.to_dict())
 
     @classmethod
     def load(cls, doc_id: str) -> "Manifest":
         """Load manifest from disk."""
-        manifest_path = Path("pipeline/manifests") / f"{doc_id}.json"
+        # Strip .json extension from doc_id if present to avoid .json.json
+        doc_id_base = doc_id.removesuffix(".json")
+        manifest_path = Path("pipeline/manifests") / f"{doc_id_base}.json"
         with open(manifest_path, encoding="utf-8") as f:
             data = json.load(f)
         return cls.from_dict(data)
@@ -140,7 +174,26 @@ class Manifest:
     @classmethod
     def from_dict(cls, data: dict) -> "Manifest":
         """Create Manifest from dictionary."""
-        steps = [StepResult.from_dict(s) for s in data.get("steps", [])]
+        # Deduplicate steps - keep only the latest execution of each step
+        steps_dict = {}
+        for step_data in data.get("steps", []):
+            step = StepResult.from_dict(step_data)
+            # Keep the step with the latest started_at time
+            if (
+                step.step_name not in steps_dict
+                or step.started_at > steps_dict[step.step_name].started_at
+            ):
+                steps_dict[step.step_name] = step
+
+        # Convert back to list, preserving original order
+        seen = set()
+        steps = []
+        for step_data in data.get("steps", []):
+            step_name = step_data["step_name"]
+            if step_name not in seen:
+                steps.append(steps_dict[step_name])
+                seen.add(step_name)
+
         return cls(
             doc_id=data["doc_id"],
             original_file=data["original_file"],
@@ -177,5 +230,7 @@ class Manifest:
     @classmethod
     def exists(cls, doc_id: str) -> bool:
         """Check if a manifest exists for a document."""
-        manifest_path = Path("pipeline/manifests") / f"{doc_id}.json"
+        # Strip .json extension from doc_id if present to avoid .json.json
+        doc_id_base = doc_id.removesuffix(".json")
+        manifest_path = Path("pipeline/manifests") / f"{doc_id_base}.json"
         return manifest_path.exists()
