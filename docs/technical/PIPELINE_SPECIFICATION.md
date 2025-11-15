@@ -823,7 +823,7 @@ Each step should have a test file in `tests/pipeline/steps/` with this structure
 import pytest
 from pathlib import Path
 from unsealed_networks.pipeline.manifest import Manifest
-from pipeline.steps.step_03_extract_urls import ExtractURLsStep
+from unsealed_networks.pipeline.steps.extract_urls import ExtractURLsStep
 
 
 @pytest.fixture

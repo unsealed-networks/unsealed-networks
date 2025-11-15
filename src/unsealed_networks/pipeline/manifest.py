@@ -121,26 +121,37 @@ class Manifest:
                 self.updated_at = datetime.utcnow().isoformat() + "Z"
                 return
 
-    def invalidate_dependent_steps(self, step_name: str) -> None:
-        """Remove steps that depend on the given step.
+    def invalidate_dependent_steps(self, changed_step_name: str) -> None:
+        """Remove steps that depend on the given step, including transitive dependencies.
 
         When a step is re-run (e.g., version changed), any steps that depend on it
         need to be invalidated and re-run to ensure consistency.
 
         Args:
-            step_name: Name of the step that changed
+            changed_step_name: Name of the step that changed
         """
-        steps_to_remove = []
+        # Iteratively find all steps that depend on the changed set of steps.
+        invalidated_names = {changed_step_name}
 
-        for step in self.steps:
-            # Check if this step depends on the changed step
-            depends_on = step.outcome.get("depends_on", [])
-            if step_name in depends_on:
-                steps_to_remove.append(step.step_name)
+        while True:
+            # Find steps that depend on any already-invalidated step.
+            newly_invalidated = {
+                step.step_name
+                for step in self.steps
+                if step.step_name not in invalidated_names
+                and any(dep in invalidated_names for dep in step.outcome.get("depends_on", []))
+            }
 
-        # Remove dependent steps
-        if steps_to_remove:
-            self.steps = [s for s in self.steps if s.step_name not in steps_to_remove]
+            if not newly_invalidated:
+                break  # No more dependents found, exit loop.
+
+            invalidated_names.update(newly_invalidated)
+
+        # We only want to remove the dependents, not the step that was changed itself.
+        invalidated_names.remove(changed_step_name)
+
+        if invalidated_names:
+            self.steps = [s for s in self.steps if s.step_name not in invalidated_names]
             self.updated_at = datetime.utcnow().isoformat() + "Z"
 
     def to_dict(self) -> dict:

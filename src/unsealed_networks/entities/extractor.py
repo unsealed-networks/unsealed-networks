@@ -456,14 +456,15 @@ Important:
 
         for llm_key, entity_type in type_mapping.items():
             for entity_text in llm_result.get(llm_key, []):
-                # Find entity in original text for context
+                # Find entity in original text for context and position
                 pattern = re.compile(re.escape(entity_text), re.IGNORECASE)
                 match = pattern.search(text)
 
+                start_pos, end_pos, context = None, None, ""
                 if match:
-                    context = self._get_context(text, match.start(), match.end())
-                else:
-                    context = ""
+                    start_pos = match.start()
+                    end_pos = match.end()
+                    context = self._get_context(text, start_pos, end_pos)
 
                 entities[llm_key].append(
                     Entity(
@@ -472,6 +473,8 @@ Important:
                         confidence=0.90,  # LLM extractions get high confidence
                         context=context,
                         method="llm",
+                        start=start_pos,
+                        end=end_pos,
                     )
                 )
 

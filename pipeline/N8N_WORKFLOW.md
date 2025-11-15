@@ -38,7 +38,7 @@ a series of steps, managing errors and tracking progress via JSON manifests.
 - **Command**:
   ```bash
   cd /home/devon/Projects/unsealed-networks/unsealed-networks && \
-  uv run python pipeline/steps/step_01_classify.py \
+  uv run python -m unsealed_networks.pipeline.steps.classify \
     "{{$node["Extract Document ID"].json["doc_id"]}}" \
     "{{$node["Extract Document ID"].json["filepath"]}}"
   ```
@@ -46,22 +46,22 @@ a series of steps, managing errors and tracking progress via JSON manifests.
 
 ### 5. Step 02: Extract Entities
 - **Type**: Execute Command
-- **Command**: Similar to Step 01, calls `step_02_extract_entities.py`
+- **Command**: Similar to Step 01, calls `unsealed_networks.pipeline.steps.extract_entities`
 - **On Error**: Go to "Handle Failure"
 
 ### 6. Step 03: Extract URLs
 - **Type**: Execute Command
-- **Command**: Similar to Step 01, calls `step_03_extract_urls.py`
+- **Command**: Similar to Step 01, calls `unsealed_networks.pipeline.steps.extract_urls`
 - **On Error**: Go to "Handle Failure"
 
-### 7. Step 04: Fix OCR URLs
+### 7. Step 04: Extract Email Metadata
 - **Type**: Execute Command
-- **Command**: Similar to Step 01, calls `step_04_fix_ocr_urls.py`
+- **Command**: Similar to Step 01, calls `unsealed_networks.pipeline.steps.extract_email_metadata`
 - **On Error**: Go to "Handle Failure"
 
 ### 8. Step 99: Assemble Metadata
 - **Type**: Execute Command
-- **Command**: Similar to Step 01, calls `step_99_assemble_metadata.py`
+- **Command**: Similar to Step 01, calls `unsealed_networks.pipeline.steps.assemble_metadata`
 - **Purpose**: Final metadata assembly from all step results
 
 ### 9. Move to Completed
@@ -210,7 +210,7 @@ for doc_id in $(cat docs_to_reprocess.txt); do
 
     python -c "
 from unsealed_networks.pipeline.manifest import Manifest
-m = Manifest.load('$doc_id')
+m = Manifest.load(\"$doc_id\")
 m.truncate_steps_after('fix_ocr_urls')
 m.status = 'processing'
 m.save()
