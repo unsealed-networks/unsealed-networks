@@ -63,3 +63,9 @@ source_text/**/*.txt
 source_text/**/*.zip
 source_text/**/*.tgz
 !source_text/.gitkeep
+
+# Pipeline data files (documents and manifests)
+pipeline/inbox/*.txt
+pipeline/manifests/*.json
+!pipeline/inbox/.gitkeep
+!pipeline/manifests/.gitkeep

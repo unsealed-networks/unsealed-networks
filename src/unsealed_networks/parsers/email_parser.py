@@ -19,6 +19,52 @@ class EmailAddress:
             return f"{self.name} <{self.email}>"
         return self.email
 
+    def to_dict(self) -> dict[str, str]:
+        """Convert to dictionary with cleaned name and email."""
+        # Clean up the name by removing special characters and extra whitespace
+        clean_name = self._clean_name(self.name) if self.name else None
+
+        # Use "redacted" for missing emails, otherwise clean the email
+        clean_email = "redacted" if self.email == "[REDACTED]" else self._clean_email(self.email)
+
+        return {"name": clean_name, "email": clean_email}
+
+    @staticmethod
+    def _clean_name(name: str | None) -> str | None:
+        """Remove cruft from names (quotes, brackets, etc.)."""
+        if not name:
+            return None
+
+        # Remove common cruft characters
+        name = name.strip().strip("'\"[]()<>").strip()
+
+        # Remove email prefixes like "mailto:"
+        if name.lower().startswith("mailto:"):
+            name = name[7:].strip()
+
+        # Remove empty brackets that might be left over
+        name = re.sub(r"\s*\[\s*\]\s*", " ", name)
+        name = re.sub(r"\s*\(\s*\)\s*", " ", name)
+
+        # Normalize whitespace
+        name = " ".join(name.split())
+
+        return name if name else None
+
+    @staticmethod
+    def _clean_email(email: str) -> str:
+        """Clean up email address."""
+        email = email.strip().lower()
+
+        # Remove mailto: prefix
+        if email.startswith("mailto:"):
+            email = email[7:]
+
+        # Remove any quotes or brackets
+        email = email.strip("'\"[]()<>")
+
+        return email
+
 
 @dataclass
 class ThreadMessage:
@@ -344,7 +390,11 @@ class EmailParser:
             name_part = addr_str[: match.start()].strip()
             return EmailAddress(email=email, name=name_part if name_part else None)
 
-        # If no email found, return None to indicate parsing failure
+        # If no email found, treat the entire string as a name (for redacted emails)
+        # This handles cases like "From: Mark L. Epstein" where email is redacted
+        if addr_str:
+            return EmailAddress(email="[REDACTED]", name=addr_str)
+
         return None
 
     def _parse_email_list(self, addr_list_str: str) -> list[EmailAddress]:

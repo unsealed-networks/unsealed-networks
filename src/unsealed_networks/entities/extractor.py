@@ -22,6 +22,18 @@ class Entity:
     confidence: float  # 0.0 to 1.0
     context: str  # surrounding text
     method: str  # "regex" or "llm"
+    start: int | None = None  # Character position in document
+    end: int | None = None  # Character position in document
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert entity to dictionary for serialization."""
+        return {
+            "name": self.text,
+            "confidence": self.confidence,
+            "method": self.method,
+            "start": self.start,
+            "end": self.end,
+        }
 
 
 class HybridEntityExtractor:
@@ -42,6 +54,7 @@ class HybridEntityExtractor:
     LLM_VALIDATION_ENABLED = True  # Toggle LLM validation
     CONTEXT_WINDOW = 50  # Characters of context around entity
     MAX_TEXT_LENGTH = 3000  # Max chars to send to LLM
+    LOW_CONFIDENCE_THRESHOLD = 0.80  # Entities below this get LLM validation
 
     # Regex patterns for entity extraction
     # Person names: Title + First + Last, or First + Last
@@ -123,9 +136,16 @@ class HybridEntityExtractor:
             "dates": self._extract_dates_regex(text),
         }
 
-        # Stage 2: LLM validation (optional)
+        # Stage 2: LLM extraction + validation (optional)
         if use_llm:
-            entities = self._validate_with_llm(text, entities)
+            # First, do fresh LLM extraction to find entities regex missed
+            llm_entities = self._extract_with_llm(text)
+
+            # Merge LLM entities with regex entities (deduplicate)
+            entities = self._merge_entities(entities, llm_entities)
+
+            # Stage 3: Validate low-confidence entities
+            entities = self._validate_low_confidence_entities(entities, text)
 
         return entities
 
@@ -137,11 +157,14 @@ class HybridEntityExtractor:
         for pattern in self._COMPILED_PERSON_PATTERNS:
             for match in pattern.finditer(text):
                 name = match.group(1) if match.lastindex else match.group(0)
+                # Get positions for the captured group or full match
+                start_pos = match.start(1) if match.lastindex else match.start()
+                end_pos = match.end(1) if match.lastindex else match.end()
                 name = name.strip()
 
                 # Filter out common false positives
                 if self._is_likely_person_name(name) and name not in seen:
-                    context = self._get_context(text, match.start(), match.end())
+                    context = self._get_context(text, start_pos, end_pos)
                     confidence = self._calculate_name_confidence(name, context)
 
                     people.append(
@@ -151,6 +174,8 @@ class HybridEntityExtractor:
                             confidence=confidence,
                             context=context,
                             method="regex",
+                            start=start_pos,
+                            end=end_pos,
                         )
                     )
                     seen.add(name)
@@ -165,10 +190,12 @@ class HybridEntityExtractor:
         for pattern in self._COMPILED_ORG_PATTERNS:
             for match in pattern.finditer(text):
                 org = match.group(1) if match.lastindex else match.group(0)
+                start_pos = match.start(1) if match.lastindex else match.start()
+                end_pos = match.end(1) if match.lastindex else match.end()
                 org = org.strip()
 
                 if org not in seen and len(org) > 3:  # Filter very short matches
-                    context = self._get_context(text, match.start(), match.end())
+                    context = self._get_context(text, start_pos, end_pos)
 
                     orgs.append(
                         Entity(
@@ -177,6 +204,8 @@ class HybridEntityExtractor:
                             confidence=0.80,  # Org patterns are fairly reliable
                             context=context,
                             method="regex",
+                            start=start_pos,
+                            end=end_pos,
                         )
                     )
                     seen.add(org)
@@ -191,9 +220,11 @@ class HybridEntityExtractor:
         for pattern in self._COMPILED_LOCATION_PATTERNS:
             for match in pattern.finditer(text):
                 loc = match.group(0).strip()
+                start_pos = match.start()
+                end_pos = match.end()
 
                 if loc not in seen:
-                    context = self._get_context(text, match.start(), match.end())
+                    context = self._get_context(text, start_pos, end_pos)
 
                     locations.append(
                         Entity(
@@ -202,6 +233,8 @@ class HybridEntityExtractor:
                             confidence=0.85,  # Location patterns are quite reliable
                             context=context,
                             method="regex",
+                            start=start_pos,
+                            end=end_pos,
                         )
                     )
                     seen.add(loc)
@@ -216,9 +249,11 @@ class HybridEntityExtractor:
         for pattern in self._COMPILED_DATE_PATTERNS:
             for match in pattern.finditer(text):
                 date = match.group(0).strip()
+                start_pos = match.start()
+                end_pos = match.end()
 
                 if date not in seen:
-                    context = self._get_context(text, match.start(), match.end())
+                    context = self._get_context(text, start_pos, end_pos)
 
                     dates.append(
                         Entity(
@@ -227,6 +262,8 @@ class HybridEntityExtractor:
                             confidence=0.95,  # Date patterns are very reliable
                             context=context,
                             method="regex",
+                            start=start_pos,
+                            end=end_pos,
                         )
                     )
                     seen.add(date)
@@ -330,41 +367,258 @@ class HybridEntityExtractor:
         context_end = min(len(text), end + self.CONTEXT_WINDOW)
         return text[context_start:context_end]
 
-    def _validate_with_llm(
-        self, text: str, entities: dict[str, list[Entity]]
-    ) -> dict[str, list[Entity]]:
-        """Use LLM to validate and enhance entity extraction.
+    def _extract_with_llm(self, text: str) -> dict[str, list[Entity]]:
+        """Use LLM to extract entities from text.
 
-        Only validates entities with confidence < REGEX_CONFIDENCE threshold.
+        This does fresh extraction, not validation of existing entities.
+        Useful for finding entities that regex patterns miss (e.g., single-word names).
         """
-        # Filter low-confidence entities that need validation
-        low_confidence = []
-        for _entity_type, entity_list in entities.items():
-            for entity in entity_list:
-                if entity.confidence < self.REGEX_CONFIDENCE:
-                    low_confidence.append(entity)
-
-        if not low_confidence:
-            return entities  # All entities are high-confidence
-
         # Prepare text for LLM (truncate if too long)
         llm_text = text[: self.MAX_TEXT_LENGTH]
 
-        # Build validation prompt
-        prompt = self._build_validation_prompt(llm_text, low_confidence)
+        # Build extraction prompt
+        prompt = self._build_extraction_prompt(llm_text)
 
         try:
-            # Call Ollama for validation
-            validated = self._call_ollama_validation(prompt)
+            # Call Ollama for extraction
+            result = self._call_ollama_extraction(prompt)
 
-            # Update confidence scores based on LLM response
-            entities = self._apply_llm_validation(entities, validated)
+            # Parse LLM response into Entity objects
+            entities = self._parse_llm_entities(result, llm_text)
 
         except Exception as e:
-            # If LLM fails, return original regex results
-            logger.warning(f"LLM validation failed: {e}")
+            # If LLM fails, return empty results
+            logger.warning(f"LLM extraction failed: {e}")
+            entities = {"people": [], "organizations": [], "locations": [], "dates": []}
 
         return entities
+
+    def _build_extraction_prompt(self, text: str) -> str:
+        """Build prompt for LLM entity extraction."""
+        prompt = f"""Extract all named entities from the following document.
+
+Focus on:
+- **People**: All person names, including single-word references (e.g., "Putin",
+  "Trump"), nicknames (e.g., "Bubba"), and full names
+- **Organizations**: Companies, institutions, government agencies
+- **Locations**: Cities, countries, addresses, geographic locations
+
+Document excerpt:
+{text}
+
+Respond with JSON in this exact format:
+{{
+  "people": ["Name 1", "Name 2", ...],
+  "organizations": ["Org 1", "Org 2", ...],
+  "locations": ["Location 1", "Location 2", ...]
+}}
+
+Important:
+- Include ALL person references, even single-word names or nicknames
+- Do not include common words that happen to be capitalized
+- Do not include pronouns (he, she, they, etc.)
+- Focus on proper nouns that refer to specific entities"""
+        return prompt
+
+    def _call_ollama_extraction(self, prompt: str) -> dict[str, Any]:
+        """Call Ollama API for entity extraction."""
+        url = f"{self.ollama_config.host}/api/generate"
+        payload = {
+            "model": self.ollama_config.model,
+            "prompt": prompt,
+            "stream": False,
+            "format": "json",
+        }
+
+        response = requests.post(url, json=payload, timeout=self.ollama_config.timeout)
+        response.raise_for_status()
+
+        result = response.json()
+
+        try:
+            extracted = json.loads(result["response"])
+        except json.JSONDecodeError as e:
+            logger.warning(f"LLM returned invalid JSON: {result['response'][:200]}... Error: {e}")
+            extracted = {}
+
+        return extracted
+
+    def _parse_llm_entities(self, llm_result: dict[str, Any], text: str) -> dict[str, list[Entity]]:
+        """Parse LLM extraction results into Entity objects."""
+        entities = {"people": [], "organizations": [], "locations": [], "dates": []}
+
+        # Map LLM response keys to our entity types
+        type_mapping = {
+            "people": "person",
+            "organizations": "organization",
+            "locations": "location",
+        }
+
+        for llm_key, entity_type in type_mapping.items():
+            for entity_text in llm_result.get(llm_key, []):
+                # Find entity in original text for context and position
+                pattern = re.compile(re.escape(entity_text), re.IGNORECASE)
+                match = pattern.search(text)
+
+                start_pos, end_pos, context = None, None, ""
+                if match:
+                    start_pos = match.start()
+                    end_pos = match.end()
+                    context = self._get_context(text, start_pos, end_pos)
+
+                entities[llm_key].append(
+                    Entity(
+                        text=entity_text,
+                        type=entity_type,
+                        confidence=0.90,  # LLM extractions get high confidence
+                        context=context,
+                        method="llm",
+                        start=start_pos,
+                        end=end_pos,
+                    )
+                )
+
+        return entities
+
+    def _merge_entities(
+        self, regex_entities: dict[str, list[Entity]], llm_entities: dict[str, list[Entity]]
+    ) -> dict[str, list[Entity]]:
+        """Merge regex and LLM entity extractions, removing duplicates."""
+        merged = {}
+
+        for entity_type in regex_entities.keys():
+            # Combine both lists
+            all_entities = regex_entities[entity_type] + llm_entities.get(entity_type, [])
+
+            # Deduplicate by normalized text (case-insensitive)
+            seen = {}
+            for entity in all_entities:
+                normalized = entity.text.lower().strip()
+                if normalized not in seen:
+                    seen[normalized] = entity
+                else:
+                    # Keep the one with higher confidence
+                    if entity.confidence > seen[normalized].confidence:
+                        seen[normalized] = entity
+
+            merged[entity_type] = list(seen.values())
+
+        return merged
+
+    def _validate_low_confidence_entities(
+        self, entities: dict[str, list[Entity]], text: str
+    ) -> dict[str, list[Entity]]:
+        """Validate low-confidence entities with LLM to filter out OCR noise.
+
+        Entities below LOW_CONFIDENCE_THRESHOLD are sent to LLM for validation.
+        Entities that LLM confirms as invalid are filtered out.
+        """
+        # Collect all low-confidence entities
+        low_conf_entities = []
+        for entity_list in entities.values():
+            for entity in entity_list:
+                if entity.confidence < self.LOW_CONFIDENCE_THRESHOLD:
+                    low_conf_entities.append(entity)
+
+        # If no low-confidence entities, skip validation
+        if not low_conf_entities:
+            return entities
+
+        logger.info(f"Validating {len(low_conf_entities)} low-confidence entities with LLM")
+
+        # Build validation prompt
+        prompt = self._build_low_confidence_validation_prompt(text, low_conf_entities)
+
+        try:
+            # Call LLM for validation
+            result = self._call_ollama_validation(prompt)
+
+            # Apply validation results (filter out invalid entities)
+            entities = self._apply_low_confidence_validation(entities, result)
+
+        except Exception as e:
+            # If LLM validation fails, keep original entities
+            logger.warning(f"Low-confidence entity validation failed: {e}")
+
+        return entities
+
+    def _build_low_confidence_validation_prompt(self, text: str, entities: list[Entity]) -> str:
+        """Build prompt for validating low-confidence entities."""
+        # Truncate text for LLM
+        llm_text = text[: self.MAX_TEXT_LENGTH]
+
+        # Build entity list with context
+        entity_entries = []
+        for entity in entities:
+            entity_entries.append(
+                f'- "{entity.text}" (type: {entity.type}, context: ...{entity.context}...)'
+            )
+        entity_list = "\n".join(entity_entries)
+
+        prompt = f"""The following entities were extracted from a document,
+but have low confidence scores. Your task is to determine if each entity is VALID
+(a real entity) or INVALID (OCR noise, parsing error, or not an entity).
+
+Common signs of invalid entities:
+- Contains newline characters or strange whitespace (e.g., "High\\nAsk")
+- Nonsense text or gibberish (e.g., "Zxqw Rtyp")
+- Partial words or broken text from OCR errors
+- Common words that aren't actually entity names
+- Text fragments that don't make sense as entities
+
+Document excerpt:
+{llm_text}
+
+Entities to validate:
+{entity_list}
+
+Respond with JSON in this exact format:
+{{
+  "validation_results": [
+    {{"text": "entity name", "type": "person", "is_valid": true, "reasoning": "valid"}},
+    {{"text": "entity name", "type": "organization", "is_valid": false, "reasoning": "OCR error"}},
+    ...
+  ]
+}}
+
+Mark entities as "is_valid": false if they are clearly OCR errors,
+nonsense text, or not real entities."""
+        return prompt
+
+    def _apply_low_confidence_validation(
+        self, entities: dict[str, list[Entity]], validation_result: dict[str, Any]
+    ) -> dict[str, list[Entity]]:
+        """Apply LLM validation results by filtering out invalid entities."""
+        # Build lookup of validation results keyed by (text, type) to avoid collisions
+        validation_lookup = {
+            (v["text"], v.get("type")): v for v in validation_result.get("validation_results", [])
+        }
+
+        # Filter entities based on validation
+        filtered = {}
+        for entity_type, entity_list in entities.items():
+            filtered_list = []
+            for entity in entity_list:
+                # Check if entity was validated
+                if (entity.text, entity.type) in validation_lookup:
+                    validation = validation_lookup[(entity.text, entity.type)]
+                    if validation.get("is_valid", True):
+                        # Keep valid entities
+                        filtered_list.append(entity)
+                        logger.debug(
+                            f"Validated '{entity.text}': {validation.get('reasoning', 'N/A')}"
+                        )
+                    else:
+                        # Filter out invalid entities
+                        reason = validation.get("reasoning", "N/A")
+                        logger.info(f"Filtered out invalid entity '{entity.text}': {reason}")
+                else:
+                    # Keep entities that weren't checked (high confidence)
+                    filtered_list.append(entity)
+
+            filtered[entity_type] = filtered_list
+
+        return filtered
 
     def _build_validation_prompt(self, text: str, entities: list[Entity]) -> str:
         """Build prompt for LLM entity validation."""
