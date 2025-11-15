@@ -575,8 +575,8 @@ Entities to validate:
 Respond with JSON in this exact format:
 {{
   "validation_results": [
-    {{"text": "entity name", "is_valid": true, "reasoning": "why it's valid"}},
-    {{"text": "entity name", "is_valid": false, "reasoning": "why it's invalid"}},
+    {{"text": "entity name", "type": "person", "is_valid": true, "reasoning": "valid"}},
+    {{"text": "entity name", "type": "organization", "is_valid": false, "reasoning": "OCR error"}},
     ...
   ]
 }}
