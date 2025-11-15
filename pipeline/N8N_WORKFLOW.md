@@ -37,12 +37,13 @@ a series of steps, managing errors and tracking progress via JSON manifests.
 - **Type**: Execute Command
 - **Command**:
   ```bash
-  cd /home/devon/Projects/unsealed-networks/unsealed-networks && \
+  cd "${PROJECT_ROOT}" && \
   uv run python -m unsealed_networks.pipeline.steps.classify \
     "{{$node["Extract Document ID"].json["doc_id"]}}" \
     "{{$node["Extract Document ID"].json["filepath"]}}"
   ```
 - **On Error**: Go to "Handle Failure"
+- **Note**: Set `PROJECT_ROOT` environment variable in n8n to your installation directory
 
 ### 5. Step 02: Extract Entities
 - **Type**: Execute Command

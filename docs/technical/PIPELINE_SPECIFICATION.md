@@ -103,7 +103,7 @@ Each document has a JSON manifest tracking its processing state:
   "original_file": "HOUSE_OVERSIGHT_000123.txt",
   "created_at": "2025-11-14T19:30:00Z",
   "updated_at": "2025-11-14T19:35:00Z",
-  "status": "completed",  // processing | completed | failed
+  "status": "completed"
 
   "provenance": {
     "source": "House Oversight Committee",
@@ -669,9 +669,7 @@ pipeline/dead_letters/
   "error": "ValueError: Invalid entity format in line 42",
   "stack_trace": "...",
   "last_successful_step": "classify",
-  "manifest": {
-    // Full manifest at time of failure
-  }
+  "manifest": {}
 }
 ```
 
@@ -772,8 +770,7 @@ class AssembleMetadataStep(PipelineStep):
         metadata = {
             "doc_type": manifest.get_step("classify").outcome["doc_type"],
             "entities": manifest.get_step("extract_entities").outcome,
-            "urls": manifest.get_step("fix_ocr_urls").outcome["urls"],
-            // ...
+            "urls": manifest.get_step("fix_ocr_urls").outcome["urls"]
         }
 
         manifest.update_metadata("final", metadata)
@@ -956,8 +953,8 @@ def test_merge_entities_reads_from_extract_step(temp_doc, empty_manifest):
         status="success",
         outcome={
             "entities": [
-                {"text": "Trump", "type": "PERSON", "start": 10, "end": 15},
-                {"text": "Epstein", "type": "PERSON", "start": 20, "end": 27}
+                {"name": "Trump", "type": "PERSON", "start": 10, "end": 15},
+                {"name": "Epstein", "type": "PERSON", "start": 20, "end": 27}
             ]
         }
     )

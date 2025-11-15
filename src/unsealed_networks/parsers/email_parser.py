@@ -35,13 +35,8 @@ class EmailAddress:
         if not name:
             return None
 
-        # Remove common cruft characters (iterate until no change)
-        prev_name = None
-        while prev_name != name:
-            prev_name = name
-            name = name.strip()
-            name = name.strip("'\"[]()<>")  # Remove quotes and brackets
-            name = name.strip()
+        # Remove common cruft characters
+        name = name.strip().strip("'\"[]()<>").strip()
 
         # Remove email prefixes like "mailto:"
         if name.lower().startswith("mailto:"):

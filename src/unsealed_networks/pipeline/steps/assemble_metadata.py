@@ -21,6 +21,11 @@ from unsealed_networks.pipeline.step import PipelineStep, run_step_cli
 class AssembleMetadataStep(PipelineStep):
     """Assemble final metadata from all pipeline steps."""
 
+    # Constants for entity metadata limits
+    TOP_N_PERSONS = 20  # Top persons to include in metadata
+    TOP_N_ORGANIZATIONS = 10  # Top organizations to include in metadata
+    TOP_N_LOCATIONS = 10  # Top locations to include in metadata
+
     @property
     def name(self) -> str:
         return "assemble_metadata"
@@ -86,15 +91,15 @@ class AssembleMetadataStep(PipelineStep):
 
             manifest.update_metadata(
                 "persons",
-                [p["name"] for p in persons_sorted[:20]],  # Top 20 persons by confidence
+                [p["name"] for p in persons_sorted[: self.TOP_N_PERSONS]],
             )
             manifest.update_metadata(
                 "organizations",
-                [o["name"] for o in orgs_sorted[:10]],  # Top 10 orgs by confidence
+                [o["name"] for o in orgs_sorted[: self.TOP_N_ORGANIZATIONS]],
             )
             manifest.update_metadata(
                 "locations",
-                [loc["name"] for loc in locs_sorted[:10]],  # Top 10 locations by confidence
+                [loc["name"] for loc in locs_sorted[: self.TOP_N_LOCATIONS]],
             )
             manifest.update_metadata("entities_count", entities_step.outcome["entities_found"])
 
